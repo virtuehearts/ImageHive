@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ImageHive - Local Qwen Assistant</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">🐝</span>
+        <div>
+          <div class="title">ImageHive</div>
+          <div class="subtitle">Local Qwen + Fal.ai helper</div>
+        </div>
+      </div>
+      <div class="status">
+        <span id="gpu-status" class="chip">Checking GPU...</span>
+        <button id="open-settings" class="ghost">Settings</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel chat-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Chat</h2>
+            <p class="muted">Ask Qwen for prompt crafting or image JSON helpers.</p>
+          </div>
+          <button id="clear-chat" class="ghost">Clear</button>
+        </div>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="chat-input">
+          <textarea id="chat-message" placeholder="Message ImageHive..." rows="3"></textarea>
+          <div class="input-actions">
+            <label class="inline"><input type="checkbox" id="save-json" /> Save response as JSON prompt</label>
+            <button type="submit">Send</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel gallery-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Gallery</h2>
+            <p class="muted">Library of JSON prompts and generated images.</p>
+          </div>
+          <button id="refresh-gallery" class="ghost">Refresh</button>
+        </div>
+        <div class="gallery-form">
+          <input id="gallery-title" type="text" placeholder="Title for JSON prompt" />
+          <textarea id="gallery-json" rows="6" placeholder="Paste JSON_prompt_tool payload or prompt details"></textarea>
+          <input id="gallery-image" type="text" placeholder="Image URL (optional)" />
+          <button id="save-gallery">Save to gallery</button>
+        </div>
+        <div id="gallery-list" class="gallery-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button id="close-settings" class="ghost">Close</button>
+      </div>
+      <form id="settings-form" class="settings-form">
+        <label>Fal.ai API Key <input type="password" id="fal-key" placeholder="sk-..." /></label>
+        <label>Ollama Host <input type="text" id="ollama-host" placeholder="http://localhost:11434" /></label>
+        <label>Ollama Model <input type="text" id="ollama-model" placeholder="qwen2.5:latest" /></label>
+        <p class="muted">Settings are stored locally on this machine. Fal.ai key stays on-device.</p>
+        <button type="submit">Save Settings</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
