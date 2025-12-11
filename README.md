@@ -8,7 +8,7 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
 
 ## ✨ Key Features
 
-- **Local-first, low-requirement SLM** — Runs Qwen2.5-VL-3B-Instruct locally (CPU or GPU) with no prompts sent to external LLMs by default.
+- **Local-first, low-requirement SLM** — Runs the low-memory **Qwen2.5-VL-3B-Instruct Q8_0** build locally (CPU or GPU) with no prompts sent to external LLMs by default.
 - **GPU-aware startup** — A helper script checks for GPU support before choosing a CPU fallback, and server requests hint to Ollama how many GPUs to use.
 - **Visual understanding** — Analyze images for subject, style, composition, and turn them into prompt-ready descriptions.
 - **Prompt crafting & refinement** — Chat to iteratively improve prompts, including JSON snippets compatible with prompt tools.
@@ -22,33 +22,29 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
    ```bash
    ./ImageHive install
    ```
-   This copies `.env.example` into `.env` (if missing) and installs npm packages.
-2. **Configure environment**
-   - Update `.env` values as needed:
-     - `PORT` — Port for the Node.js server (default: `3000`).
-     - `OLLAMA_HOST` — URL for the local Ollama service (default: `http://localhost:11434`).
-     - `OLLAMA_MODEL` — Ollama model tag to use (default: `qwen2.5:latest`).
-     - `FAL_API_KEY` — Fal.ai API key for remote generations (stored locally in `data/settings.json`).
-     - `DATA_DIR` (optional) — Storage for conversation/prompt history (defaults to `./data`).
-3. **Check GPU readiness**
+   This copies `.env.example` into `.env` (if missing) and installs npm packages using the defaults: local Ollama host (`127.0.0.1:11434`), the Unsloth Qwen2.5-VL-3B-Instruct Q8_0 tag, and `./data` for storage.
+2. **Configure environment (only Fal.ai if you want)**
+   - The only value you need to add manually is `FAL_API_KEY` (for optional Fal.ai renders). Host, model, and data directory are prefilled and auto-created at runtime.
+3. **Check GPU readiness (optional)**
    ```bash
    npm run check:gpu
    ```
    The script reports whether `nvidia-smi` detects a GPU. The server will use GPU when available and fall back to CPU otherwise.
 4. **Start the local VLM backend**
-   - Make sure Ollama is running and the Qwen model is pulled:
-     ```bash
-     ollama pull qwen2.5:latest
-     ```
    - Start the Ollama service (if not already running):
      ```bash
      ollama serve
+     ```
+   - ImageHive will auto-create the `qwen2.5-vl-3b-instruct-q8_0` model from the Unsloth GGUF on first run. If you prefer to prepare it yourself:
+     ```bash
+     OLLAMA_HOST=http://127.0.0.1:11434 \
+     ollama create qwen2.5-vl-3b-instruct-q8_0 -f modelfiles/qwen2.5-vl-3b-instruct-q8_0.Modelfile
      ```
 5. **Run ImageHive**
    ```bash
    ./ImageHive start
    ```
-   Open your browser at `http://localhost:3000` to chat, manage settings, and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
+   Open your browser at `http://localhost:3000` to chat, manage settings (including Fal.ai key), and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
 
 ## Architecture
 
