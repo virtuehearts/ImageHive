@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureDataDir, loadSettings, saveSettings, loadGallery, saveGallery } from './storage.js';
 import { chatWithQwen, getGpuStatus } from './ollamaClient.js';
+import { generateFalImage } from './falClient.js';
 
 dotenv.config();
 
@@ -79,6 +80,19 @@ app.post('/api/chat', async (req, res) => {
   try {
     const reply = await chatWithQwen(messages);
     res.json(reply);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/fal/generate', async (req, res) => {
+  const { promptJson, aspectRatio, resolution } = req.body || {};
+  if (!promptJson) {
+    return res.status(400).json({ message: 'promptJson is required.' });
+  }
+  try {
+    const result = await generateFalImage({ promptJson, aspectRatio, resolution });
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

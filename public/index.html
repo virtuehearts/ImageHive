@@ -75,6 +75,28 @@
           <input id="gallery-title" type="text" placeholder="Title for JSON prompt" />
           <textarea id="gallery-json" rows="6" placeholder="Paste JSON_prompt_tool payload or prompt details"></textarea>
           <input id="gallery-image" type="text" placeholder="Image URL (optional)" />
+          <div class="fal-controls">
+            <div class="fal-inputs">
+              <label class="stacked">Aspect ratio
+                <select id="fal-aspect-ratio">
+                  <option value="9:16" selected>9:16 (default)</option>
+                  <option value="16:9">16:9</option>
+                  <option value="3:4">3:4</option>
+                  <option value="1:1">1:1</option>
+                </select>
+              </label>
+              <label class="stacked">Resolution
+                <select id="fal-resolution">
+                  <option value="auto-2k" selected>Auto 2K (default)</option>
+                  <option value="auto-1k">Auto 1K</option>
+                  <option value="1024x1024">1024×1024</option>
+                  <option value="1536x1024">1536×1024</option>
+                </select>
+              </label>
+            </div>
+            <button id="render-fal" type="button">Render with Fal (Seedream)</button>
+            <p id="fal-status" class="muted" aria-live="polite"></p>
+          </div>
           <button id="save-gallery">Save to gallery</button>
         </div>
         <div id="gallery-list" class="gallery-list"></div>

@@ -10,6 +10,10 @@ const saveGallery = document.getElementById('save-gallery');
 const galleryTitle = document.getElementById('gallery-title');
 const galleryJson = document.getElementById('gallery-json');
 const galleryImage = document.getElementById('gallery-image');
+const renderFal = document.getElementById('render-fal');
+const falAspectRatio = document.getElementById('fal-aspect-ratio');
+const falResolution = document.getElementById('fal-resolution');
+const falStatus = document.getElementById('fal-status');
 const settingsModal = document.getElementById('settings-modal');
 const openSettings = document.getElementById('open-settings');
 const closeSettings = document.getElementById('close-settings');
@@ -152,6 +156,7 @@ async function persistGallery() {
 
 saveGallery.addEventListener('click', persistGallery);
 refreshGallery.addEventListener('click', loadGallery);
+renderFal.addEventListener('click', generateFalRender);
 
 openSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -184,3 +189,33 @@ showIntroMessage();
 fetchHealth();
 hydrateSettings();
 loadGallery();
+
+async function generateFalRender() {
+  const promptJson = galleryJson.value.trim();
+  if (!promptJson) return alert('Add a JSON prompt before sending to Fal.');
+  falStatus.textContent = 'Sending to Fal...';
+  try {
+    const res = await fetch('/api/fal/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        promptJson,
+        aspectRatio: falAspectRatio.value,
+        resolution: falResolution.value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Fal render failed.');
+    }
+    falStatus.textContent = data.imageUrl
+      ? 'Fal render ready — image URL added below.'
+      : 'Fal render finished (no image URL returned).';
+    if (data.imageUrl) {
+      galleryImage.value = data.imageUrl;
+      galleryTitle.value = galleryTitle.value || `Fal render ${new Date().toLocaleString()}`;
+    }
+  } catch (error) {
+    falStatus.textContent = `Fal error: ${error.message}`;
+  }
+}

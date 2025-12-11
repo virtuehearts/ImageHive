@@ -31,6 +31,7 @@ export function buildSystemPrompt() {
     '- Output ready-to-run text blocks; keep instructions crisp and production-ready.',
     '',
     'If a user asks for JSON or structured output, provide keys for model, prompt, image_url (optional), seed, width, height.',
+    'When building Fal-ready JSON, default to model "fal-ai/bytedance/seedream/v4.5/text-to-image", aspect_ratio "9:16", and resolution "auto-2k" unless the user asks otherwise.',
     'If unsure, ask one clarifying question before giving the final prompt.',
   ].join('\n');
 }
