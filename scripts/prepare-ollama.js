@@ -22,6 +22,10 @@ const isLocalHost = /127\.0\.0\.1|localhost/.test(ollamaHost);
 
 const env = { ...process.env, OLLAMA_HOST: ollamaHost };
 const modelfilePath = path.join(projectRoot, 'modelfiles', `${modelTag}.Modelfile`);
+const dataDir = process.env.DATA_DIR || path.join(projectRoot, 'data');
+const modelDir = path.join(dataDir, 'models');
+const modelFileName = path.basename(new URL(modelUrl).pathname);
+const modelDownloadPath = path.join(modelDir, modelFileName);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function commandExists(cmd) {
@@ -34,24 +38,29 @@ function commandExists(cmd) {
   }
 }
 
-function ensureModelfile() {
-  if (!fs.existsSync(modelfilePath)) {
-    fs.mkdirSync(path.dirname(modelfilePath), { recursive: true });
-    const content = [
-      '# Auto-generated if missing — backed by Unsloth GGUF release',
-      `FROM ${modelUrl}`,
-      '',
-      '{{- if .System }}<|im_start|>system',
-      '{{ .System }}<|im_end|>',
-      '{{- end }}{{- range .Messages }}',
-      '<|im_start|>{{ .Role }}',
-      '{{- if .Content }}',
-      '{{ .Content }}{{ end }}<|im_end|>',
-      '{{- end }}<|im_start|>assistant',
-    ].join('\n');
-    const modelfile = `# ${modelTag}\n# Lightweight Qwen2.5-VL-3B-Instruct via Unsloth\nTEMPLATE """${content}\n{{ .Response }}"""\nPARAMETER num_ctx 8192\nPARAMETER temperature 0.4\n`;
-    fs.writeFileSync(modelfilePath, modelfile);
+function resolveModelSource() {
+  if (fs.existsSync(modelDownloadPath)) {
+    return path.resolve(modelDownloadPath);
   }
+  return modelUrl;
+}
+
+function ensureModelfile() {
+  fs.mkdirSync(path.dirname(modelfilePath), { recursive: true });
+  const content = [
+    '# Auto-generated if missing — backed by Unsloth GGUF release',
+    `FROM ${resolveModelSource()}`,
+    '',
+    '{{- if .System }}<|im_start|>system',
+    '{{ .System }}<|im_end|>',
+    '{{- end }}{{- range .Messages }}',
+    '<|im_start|>{{ .Role }}',
+    '{{- if .Content }}',
+    '{{ .Content }}{{ end }}<|im_end|>',
+    '{{- end }}<|im_start|>assistant',
+  ].join('\n');
+  const modelfile = `# ${modelTag}\n# Lightweight Qwen2.5-VL-3B-Instruct via Unsloth\nTEMPLATE """${content}\n{{ .Response }}"""\nPARAMETER num_ctx 8192\nPARAMETER temperature 0.4\n`;
+  fs.writeFileSync(modelfilePath, modelfile);
 }
 
 async function isOllamaRunning() {
@@ -123,15 +132,15 @@ function ensureModel() {
     return;
   }
 
-  ensureModelfile();
-
   if (hasModel()) {
     console.log(`Ollama model '${modelTag}' already available.`);
     return;
   }
 
   try {
-    console.log(`Preparing Ollama model '${modelTag}' from ${modelUrl} ...`);
+    ensureModelfile();
+    const resolvedSource = resolveModelSource();
+    console.log(`Preparing Ollama model '${modelTag}' from ${resolvedSource} ...`);
     execSync(`ollama create ${modelTag} -f "${modelfilePath}"`, { stdio: 'inherit', env });
     console.log(`Model '${modelTag}' downloaded and ready.`);
   } catch (error) {
@@ -159,8 +168,29 @@ function ensureEnvDefaults() {
   fs.writeFileSync(envPath, nextText + '\n');
 }
 
+async function ensureHuggingFaceDownload() {
+  if (fs.existsSync(modelDownloadPath)) return;
+
+  fs.mkdirSync(modelDir, { recursive: true });
+  console.log(`Downloading model file to ${modelDownloadPath} ...`);
+  const res = await fetch(modelUrl);
+  if (!res.ok || !res.body) {
+    throw new Error(`Failed to download model file: ${res.status} ${res.statusText}`);
+  }
+
+  const fileStream = fs.createWriteStream(modelDownloadPath);
+  await new Promise((resolve, reject) => {
+    res.body.pipe(fileStream);
+    res.body.on('error', reject);
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
+  });
+  console.log('Model file downloaded.');
+}
+
 try {
   await ensureEnvDefaults();
+  await ensureHuggingFaceDownload();
   const online = await ensureOllamaOnline();
   if (!online) {
     console.warn('Ollama host is not reachable; model preparation skipped.');
