@@ -270,6 +270,8 @@ try {
   const online = await ensureOllamaOnline();
   if (!online) {
     console.warn('Ollama host is not reachable; model preparation skipped.');
+    process.exitCode = 1;
+    return;
   } else {
     ensureModel();
   }
