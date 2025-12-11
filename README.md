@@ -9,77 +9,71 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
 ## ✨ Key Features
 
 - **Local-first, low-requirement SLM** — Runs Qwen2.5-VL-3B-Instruct locally (CPU or GPU) with no prompts sent to external LLMs by default.
+- **GPU-aware startup** — A helper script checks for GPU support before choosing a CPU fallback, and server requests hint to Ollama how many GPUs to use.
 - **Visual understanding** — Analyze images for subject, style, composition, and turn them into prompt-ready descriptions.
 - **Prompt crafting & refinement** — Chat to iteratively improve prompts, including JSON snippets compatible with prompt tools.
 - **Fal.ai integration** — Generate images via Fal.ai with explicit cost confirmation before each call.
 - **Chat-style web interface** — Node.js backend with a ChatGPT-like UI for text, image uploads, and prompt previews.
+- **Gallery for JSON_prompt_tool** — Save JSON prompts and associated images locally so you can reuse them later.
 
 ## Getting Started
 
-> ⚠️ This project is in-progress. Replace placeholders as you implement.
-
-1. **Clone the repo**
-   ```bash
-   git clone https://github.com/virtuehearts/ImageHive.git
-   cd ImageHive
-   ```
-2. **Install dependencies (Node.js ≥ 18)**
+1. **Install dependencies (Node.js ≥ 18)**
    ```bash
    npm install
-   # or
-   yarn install
    ```
-3. **Configure environment**
+2. **Configure environment**
    - Copy the example env file and fill in values:
      ```bash
      cp .env.example .env
      ```
-   - Required variables include:
-     - `PORT` — Port for the Node.js server (e.g., `3000`).
-     - `FAL_API_KEY` — Fal.ai API key for remote generations.
-     - `QWEN_MODEL_PATH` — Local path to Qwen2.5-VL-3B-Instruct weights.
-     - `QWEN_BACKEND_URL` — URL for the local VLM backend (e.g., `http://localhost:8000`).
-     - `DATA_DIR` (optional) — Storage for conversation/prompt history.
+   - Key variables:
+     - `PORT` — Port for the Node.js server (default: `3000`).
+     - `OLLAMA_HOST` — URL for the local Ollama service (default: `http://localhost:11434`).
+     - `OLLAMA_MODEL` — Ollama model tag to use (default: `qwen2.5:latest`).
+     - `FAL_API_KEY` — Fal.ai API key for remote generations (stored locally in `data/settings.json`).
+     - `DATA_DIR` (optional) — Storage for conversation/prompt history (defaults to `./data`).
+3. **Check GPU readiness**
+   ```bash
+   npm run check:gpu
+   ```
+   The script reports whether `nvidia-smi` detects a GPU. The server will use GPU when available and fall back to CPU otherwise.
 4. **Start the local VLM backend**
-   - Implement a runner for Qwen2.5-VL-3B-Instruct (e.g., vLLM, llama.cpp). A minimal Node-friendly approach:
-     - Provide an HTTP endpoint (or Python bridge) that accepts text + image inputs and returns model responses.
-     - Ensure the endpoint matches `QWEN_BACKEND_URL`.
-   - Example placeholder command:
+   - Make sure Ollama is running and the Qwen model is pulled:
      ```bash
-     python run_qwen_vl_server.py \
-       --model-path "$QWEN_MODEL_PATH" \
-       --port 8000
+     ollama pull qwen2.5:latest
+     ```
+   - Start the Ollama service (if not already running):
+     ```bash
+     ollama serve
      ```
 5. **Run ImageHive**
    ```bash
-   npm run dev
-   # or
-   npm start
+   npm run start
    ```
-   Open your browser at `http://localhost:3000`. The UI introduces ImageHive and guides you through analysis and generation.
+   Open your browser at `http://localhost:3000` to chat, manage settings, and save JSON prompts to the gallery.
 
 ## Architecture
 
 **High-level flow**
 
-1. **Frontend (Chat UI)** — Browser-based chat interface for text, image uploads, and generation controls.
-2. **Backend (Node.js)** — REST + WebSocket/SSE server exposing chat, image analysis, generation, and history routes.
-3. **Local VLM engine** — Qwen2.5-VL-3B-Instruct served locally; the backend communicates via HTTP/gRPC or a Python bridge.
-4. **Fal.ai integration** — Backend calls Fal.ai APIs for image generation after user confirmation.
+1. **Frontend (Chat UI)** — Browser-based chat interface for text, JSON prompt capture, and gallery entries.
+2. **Backend (Node.js)** — REST server exposing chat, health, settings, and gallery routes. GPU availability is checked before hinting to Ollama.
+3. **Local VLM engine** — Qwen2.5-VL-3B-Instruct served locally through Ollama.
+4. **Fal.ai integration** — Backend stores Fal.ai credentials and will later call Fal.ai APIs after user confirmation.
 
 ```text
 +------------------------+         +-------------------------+
 |   Browser Frontend     | <-----> |      Node.js Server     |
 |  - Chat UI             |  HTTP   |  - Chat routes          |
-|  - Image uploads       |  WS/SSE |  - Fal.ai integration   |
-|  - Confirm / Cancel    |         |  - VLM bridge (Qwen)    |
+|  - Gallery + settings  |         |  - Fal.ai key storage   |
+|  - Prompt capture      |         |  - VLM bridge (Ollama)  |
 +------------------------+         +-----------+-------------+
                                               |
-                                              | local IPC / HTTP
+                                              | local HTTP
                                               v
                                     +------------------------+
-                                    | Qwen2.5-VL-3B-Instruct |
-                                    |   (local VLM runtime)  |
+                                    |   Ollama (Qwen model)  |
                                     +------------------------+
 
                                     +------------------------+
