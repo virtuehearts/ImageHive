@@ -55,7 +55,7 @@ app.get('/api/gallery', (req, res) => {
 });
 
 app.post('/api/gallery', (req, res) => {
-  const { title, promptJson, imageUrl } = req.body || {};
+  const { title, promptJson, imageUrl, sessionId, sessionTitle } = req.body || {};
   if (!promptJson || !title) {
     return res.status(400).json({ message: 'Title and prompt JSON are required.' });
   }
@@ -65,6 +65,8 @@ app.post('/api/gallery', (req, res) => {
     title,
     promptJson,
     imageUrl: imageUrl || '',
+    sessionId: sessionId || '',
+    sessionTitle: sessionTitle || '',
     createdAt: new Date().toISOString(),
   };
   gallery.unshift(entry);

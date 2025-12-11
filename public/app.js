@@ -4,8 +4,11 @@ const chatMessage = document.getElementById('chat-message');
 const saveJson = document.getElementById('save-json');
 const gpuStatus = document.getElementById('gpu-status');
 const clearChat = document.getElementById('clear-chat');
+const openRender = document.getElementById('open-render');
+const chatSessionTitle = document.getElementById('chat-session-title');
+const historyList = document.getElementById('history-list');
+const newChat = document.getElementById('new-chat');
 const galleryList = document.getElementById('gallery-list');
-const refreshGallery = document.getElementById('refresh-gallery');
 const saveGallery = document.getElementById('save-gallery');
 const galleryTitle = document.getElementById('gallery-title');
 const galleryJson = document.getElementById('gallery-json');
@@ -28,11 +31,82 @@ const summaryResolution = document.getElementById('summary-resolution');
 const summaryJson = document.getElementById('summary-json');
 const confirmRender = document.getElementById('confirm-render');
 const editRender = document.getElementById('edit-render');
+const renderConfirmation = document.getElementById('render-confirmation');
+const galleryModal = document.getElementById('gallery-modal');
+const openGallery = document.getElementById('open-gallery');
+const closeGallery = document.getElementById('close-gallery');
 
-const conversation = [];
+const SESSION_KEY = 'imagehive-sessions-v1';
+let sessions = [];
+let activeSessionId = null;
 
 function formatContent(content) {
   return (content ?? '').toString().replace(/\n/g, '<br/>');
+}
+
+function loadSessions() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    sessions = raw ? JSON.parse(raw) : [];
+  } catch {
+    sessions = [];
+  }
+  if (!sessions.length) {
+    const id = createSession();
+    activeSessionId = id;
+  } else if (!activeSessionId) {
+    activeSessionId = sessions[0].id;
+  }
+}
+
+function saveSessions() {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(sessions));
+}
+
+function createSession() {
+  const session = {
+    id: `chat-${Date.now()}`,
+    title: 'New chat',
+    messages: [],
+    createdAt: new Date().toISOString(),
+  };
+  sessions.unshift(session);
+  saveSessions();
+  return session.id;
+}
+
+function getActiveSession() {
+  return sessions.find((s) => s.id === activeSessionId) || sessions[0];
+}
+
+function setActiveSession(id) {
+  activeSessionId = id;
+  renderHistory();
+  renderConversation();
+  saveSessions();
+}
+
+function renderHistory() {
+  historyList.innerHTML = '';
+  if (!sessions.length) {
+    historyList.innerHTML = '<p class="history-empty">No chats yet. Start a new one!</p>';
+    return;
+  }
+
+  sessions.forEach((session) => {
+    const button = document.createElement('button');
+    button.className = `history-item${session.id === activeSessionId ? ' active' : ''}`;
+    const lastMessage = session.messages[session.messages.length - 1]?.content || 'Empty chat';
+    button.innerHTML = `
+      <div class="title-row">
+        <strong>${session.title}</strong>
+        <span class="chip">${session.messages.length} msgs</span>
+      </div>
+      <small>${lastMessage.slice(0, 60)}${lastMessage.length > 60 ? '…' : ''}</small>
+    `;
+    button.addEventListener('click', () => setActiveSession(session.id));
+    historyList.appendChild(button);
+  });
 }
 
 function appendMessage(role, content) {
@@ -41,6 +115,29 @@ function appendMessage(role, content) {
   div.innerHTML = `<small>${role === 'user' ? 'You' : 'ImageHive'}</small>${formatContent(content)}`;
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function renderConversation() {
+  const session = getActiveSession();
+  chatLog.innerHTML = '';
+  chatSessionTitle.textContent = session?.title || 'Conversation';
+  renderConfirmation.classList.add('hidden-block');
+  if (!session || !session.messages.length) {
+    showIntroMessage();
+    return;
+  }
+  session.messages.forEach((msg) => appendMessage(msg.role, msg.content));
+}
+
+function updateSessionTitleFromMessage(message) {
+  const session = getActiveSession();
+  if (!session) return;
+  if (session.title === 'New chat' || session.title.startsWith('Chat ')) {
+    const trimmed = message.slice(0, 42).trim();
+    session.title = trimmed || 'New chat';
+    saveSessions();
+    renderHistory();
+  }
 }
 
 async function fetchHealth() {
@@ -54,11 +151,41 @@ async function fetchHealth() {
   }
 }
 
+function setRenderDetailsVisibility(open) {
+  if (open) {
+    renderDetails.classList.remove('hidden');
+    toggleRenderDetails.textContent = 'Hide JSON & Settings';
+    toggleRenderDetails.setAttribute('aria-expanded', 'true');
+  } else {
+    renderDetails.classList.add('hidden');
+    toggleRenderDetails.textContent = 'View JSON & Settings';
+    toggleRenderDetails.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function updateRenderSummary() {
+  const aspectLabel = falAspectRatio?.selectedOptions?.[0]?.textContent || falAspectRatio.value;
+  const resolutionLabel = falResolution?.selectedOptions?.[0]?.textContent || falResolution.value;
+  summaryAspect.textContent = aspectLabel;
+  summaryResolution.textContent = resolutionLabel.replace('(default)', '').trim();
+
+  const promptJson = galleryJson.value.trim();
+  summaryJson.textContent = promptJson || 'Add a JSON prompt above to preview it here.';
+}
+
+function showRenderPanel() {
+  renderConfirmation.classList.remove('hidden-block');
+  updateRenderSummary();
+}
+
 async function sendChat(message) {
-  conversation.push({ role: 'user', content: message });
+  const session = getActiveSession();
+  if (!session) return;
+  session.messages.push({ role: 'user', content: message });
+  updateSessionTitleFromMessage(message);
   appendMessage('user', message);
   chatMessage.value = '';
-  const payload = { messages: conversation };
+  const payload = { messages: session.messages };
   appendMessage('bot', '<em>Thinking...</em>');
   const spinner = chatLog.lastChild;
   try {
@@ -69,10 +196,12 @@ async function sendChat(message) {
     });
     const data = await res.json();
     chatLog.removeChild(spinner);
-    conversation.push({ role: 'assistant', content: data.content });
+    session.messages.push({ role: 'assistant', content: data.content });
     appendMessage('bot', `${data.content} <br/><span class="muted">${data.fromGpu ? 'GPU' : 'CPU'} · ${data.offline ? 'Offline' : 'Ollama'}</span>`);
+    saveSessions();
+    renderHistory();
     if (saveJson.checked) {
-      galleryTitle.value = `Chat ${new Date().toLocaleString()}`;
+      galleryTitle.value = session.title || `Chat ${new Date().toLocaleString()}`;
       galleryJson.value = data.content;
       saveJson.checked = false;
     }
@@ -90,39 +219,30 @@ chatForm.addEventListener('submit', (e) => {
 });
 
 clearChat.addEventListener('click', () => {
-  conversation.length = 0;
-  chatLog.innerHTML = '';
-  showIntroMessage();
+  const session = getActiveSession();
+  if (!session) return;
+  session.messages = [];
+  saveSessions();
+  renderConversation();
+});
+
+openRender.addEventListener('click', () => {
+  populateRenderDefaultsFromChat();
+  showRenderPanel();
 });
 
 function showIntroMessage() {
   const intro = [
-    'Hi, I\'m ImageHive — your assistant for image styles, themes, and aspect ratios.',
+    "Hi, I'm ImageHive — your assistant for image styles, themes, and aspect ratios.",
     'I can recommend Fal.ai runners, generate 3×3 cinematic scene builders, and craft production-ready prompts so you can go straight to creating.'
   ].join('\n');
   appendMessage('bot', intro);
 }
 
-function updateRenderSummary() {
-  const aspectLabel = falAspectRatio?.selectedOptions?.[0]?.textContent || falAspectRatio.value;
-  const resolutionLabel = falResolution?.selectedOptions?.[0]?.textContent || falResolution.value;
-  summaryAspect.textContent = aspectLabel;
-  summaryResolution.textContent = resolutionLabel.replace('(default)', '').trim();
-
-  const promptJson = galleryJson.value.trim();
-  summaryJson.textContent = promptJson || 'Add a JSON prompt above to preview it here.';
-}
-
-function setRenderDetailsVisibility(open) {
-  if (open) {
-    renderDetails.classList.remove('hidden');
-    toggleRenderDetails.textContent = 'Hide JSON & Settings';
-    toggleRenderDetails.setAttribute('aria-expanded', 'true');
-  } else {
-    renderDetails.classList.add('hidden');
-    toggleRenderDetails.textContent = 'View JSON & Settings';
-    toggleRenderDetails.setAttribute('aria-expanded', 'false');
-  }
+function setRenderDetailsVisibilityFromButton() {
+  const isHidden = renderDetails.classList.contains('hidden');
+  updateRenderSummary();
+  setRenderDetailsVisibility(isHidden);
 }
 
 document.querySelectorAll('.suggestion').forEach((btn) => {
@@ -150,6 +270,7 @@ async function loadGallery() {
           <div>
             <strong>${entry.title}</strong>
             <div class="muted">${new Date(entry.createdAt).toLocaleString()}</div>
+            ${entry.sessionTitle ? `<div class="muted">From ${entry.sessionTitle}</div>` : ''}
           </div>
           <span class="chip">${entry.imageUrl ? 'Image + JSON' : 'JSON only'}</span>
         </header>
@@ -163,7 +284,7 @@ async function loadGallery() {
   }
 }
 
-async function persistGallery() {
+async function persistGallery(sessionId) {
   const title = galleryTitle.value.trim();
   const promptJson = galleryJson.value.trim();
   const imageUrl = galleryImage.value.trim();
@@ -171,7 +292,13 @@ async function persistGallery() {
   const res = await fetch('/api/gallery', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, promptJson, imageUrl }),
+    body: JSON.stringify({
+      title,
+      promptJson,
+      imageUrl,
+      sessionId,
+      sessionTitle: getActiveSession()?.title,
+    }),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -183,18 +310,13 @@ async function persistGallery() {
   loadGallery();
 }
 
-saveGallery.addEventListener('click', persistGallery);
-refreshGallery.addEventListener('click', loadGallery);
+saveGallery.addEventListener('click', () => persistGallery(activeSessionId));
 renderFal.addEventListener('click', () => {
   updateRenderSummary();
   setRenderDetailsVisibility(true);
   renderDetails.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
-toggleRenderDetails.addEventListener('click', () => {
-  const isHidden = renderDetails.classList.contains('hidden');
-  updateRenderSummary();
-  setRenderDetailsVisibility(isHidden);
-});
+toggleRenderDetails.addEventListener('click', setRenderDetailsVisibilityFromButton);
 confirmRender.addEventListener('click', () => {
   updateRenderSummary();
   generateFalRender();
@@ -236,11 +358,36 @@ async function hydrateSettings() {
   if (data.ollamaModel) ollamaModel.value = data.ollamaModel;
 }
 
-showIntroMessage();
-fetchHealth();
-hydrateSettings();
-loadGallery();
-updateRenderSummary();
+function startNewChat() {
+  const id = createSession();
+  setActiveSession(id);
+  renderConversation();
+}
+
+newChat.addEventListener('click', startNewChat);
+
+openGallery.addEventListener('click', () => {
+  galleryModal.classList.remove('hidden');
+  loadGallery();
+});
+closeGallery.addEventListener('click', () => galleryModal.classList.add('hidden'));
+
+function populateRenderDefaultsFromChat() {
+  const session = getActiveSession();
+  if (!session) return;
+  const latestBotJson = [...session.messages].reverse().find((m) => m.role === 'assistant')?.content || '';
+  if (!galleryJson.value) galleryJson.value = latestBotJson;
+  if (!galleryTitle.value) galleryTitle.value = session.title;
+}
+
+async function autoSaveImageToGallery(imageUrl) {
+  const session = getActiveSession();
+  populateRenderDefaultsFromChat();
+  if (!galleryJson.value || !imageUrl) return;
+  galleryImage.value = imageUrl;
+  galleryTitle.value = galleryTitle.value || `Fal render ${new Date().toLocaleString()}`;
+  await persistGallery(session?.id);
+}
 
 async function generateFalRender() {
   const promptJson = galleryJson.value.trim();
@@ -264,10 +411,21 @@ async function generateFalRender() {
       ? 'Fal render ready — image URL added below.'
       : 'Fal render finished (no image URL returned).';
     if (data.imageUrl) {
-      galleryImage.value = data.imageUrl;
-      galleryTitle.value = galleryTitle.value || `Fal render ${new Date().toLocaleString()}`;
+      await autoSaveImageToGallery(data.imageUrl);
     }
   } catch (error) {
     falStatus.textContent = `Fal error: ${error.message}`;
   }
 }
+
+function bootstrap() {
+  loadSessions();
+  renderHistory();
+  renderConversation();
+  fetchHealth();
+  hydrateSettings();
+  updateRenderSummary();
+  loadGallery();
+}
+
+bootstrap();

@@ -7,31 +7,50 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand">
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
         <span class="logo">🐝</span>
         <div>
           <div class="title">ImageHive</div>
-          <div class="subtitle">ChatGPT-style guide for styles, ratios & models</div>
+          <div class="muted">Local Qwen + Fal renders</div>
         </div>
       </div>
-      <div class="status">
-        <span id="gpu-status" class="chip">Checking GPU...</span>
-        <button id="open-settings" class="ghost">Settings</button>
+      <button id="new-chat" class="full primary">+ New chat</button>
+      <div class="sidebar-actions">
+        <button id="open-gallery" class="ghost full">Gallery</button>
+        <button id="open-settings" class="ghost full">Settings</button>
       </div>
-    </header>
+      <div class="chip wide" id="gpu-status">Checking GPU...</div>
 
-    <main class="layout">
-      <section class="panel chat-panel">
-        <div class="panel-header">
-          <div>
-            <h2>Speak with ImageHive</h2>
-            <p class="muted">Plan styles, pick aspect ratios, and choose Fal.ai or OpenRouter-ready models.</p>
-          </div>
-          <button id="clear-chat" class="ghost">Clear</button>
+      <div class="sidebar-section">
+        <div class="section-title">Chat history</div>
+        <div id="history-list" class="history-list"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title">Workspace tasks</div>
+        <ul class="task-list">
+          <li>Chat &amp; refine prompts</li>
+          <li>Save prompt JSON</li>
+          <li>Send to Fal for render</li>
+          <li>Review in gallery</li>
+        </ul>
+      </div>
+    </aside>
+
+    <div class="main-column">
+      <header class="topbar">
+        <div>
+          <div class="title">Chat with ImageHive</div>
+          <div id="chat-session-title" class="muted">New conversation</div>
         </div>
+        <div class="status-row">
+          <button id="clear-chat" class="ghost">Reset thread</button>
+        </div>
+      </header>
 
+      <div class="chat-shell">
         <div class="assistant-intro">
           <div>
             <p class="intro-title">ImageHive is your visual prompt coach.</p>
@@ -58,11 +77,14 @@
           <textarea id="chat-message" placeholder="Ask ImageHive about styles, genres, aspect ratios, or which model to run..." rows="3"></textarea>
           <div class="input-actions">
             <label class="inline"><input type="checkbox" id="save-json" /> Save response as JSON prompt</label>
-            <button type="submit">Send</button>
+            <div class="input-buttons">
+              <button id="open-render" type="button" class="ghost">Prepare render</button>
+              <button type="submit">Send</button>
+            </div>
           </div>
         </form>
 
-        <section class="render-confirmation" aria-live="polite">
+        <section id="render-confirmation" class="render-confirmation hidden-block" aria-live="polite">
           <div class="render-confirmation__header">
             <div>
               <p class="render-label">Generating with these settings</p>
@@ -100,16 +122,20 @@
             </div>
           </div>
         </section>
-      </section>
+      </div>
+    </div>
+  </div>
 
-      <section class="panel gallery-panel">
-        <div class="panel-header">
-          <div>
-            <h2>Gallery</h2>
-            <p class="muted">Library of JSON prompts and generated images.</p>
-          </div>
-          <button id="refresh-gallery" class="ghost">Refresh</button>
+  <div id="gallery-modal" class="modal hidden">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <div>
+          <h3>Gallery</h3>
+          <p class="muted">Library of JSON prompts and generated images from any chat.</p>
         </div>
+        <button id="close-gallery" class="ghost">Close</button>
+      </div>
+      <div class="gallery-grid">
         <div class="gallery-form">
           <input id="gallery-title" type="text" placeholder="Title for JSON prompt" />
           <textarea id="gallery-json" rows="6" placeholder="Paste JSON_prompt_tool payload or prompt details"></textarea>
@@ -140,8 +166,8 @@
           <button id="save-gallery">Save to gallery</button>
         </div>
         <div id="gallery-list" class="gallery-list"></div>
-      </section>
-    </main>
+      </div>
+    </div>
   </div>
 
   <div id="settings-modal" class="modal hidden">
