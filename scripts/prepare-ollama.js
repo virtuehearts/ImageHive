@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'child_process';
+import { execFileSync, execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -36,6 +36,41 @@ function commandExists(cmd) {
   } catch {
     return false;
   }
+}
+
+let cachedOllamaBinary = null;
+
+function findOllamaBinary() {
+  if (cachedOllamaBinary !== null) return cachedOllamaBinary;
+
+  const defaultName = process.platform === 'win32' ? 'ollama.exe' : 'ollama';
+  if (commandExists(defaultName)) {
+    cachedOllamaBinary = defaultName;
+    return cachedOllamaBinary;
+  }
+
+  const candidates = [];
+  if (process.platform === 'win32') {
+    const programFiles = process.env.ProgramFiles || 'C:/Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)';
+    const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || 'C:/Users/Public', 'AppData', 'Local');
+    candidates.push(
+      path.join(programFiles, 'Ollama', 'ollama.exe'),
+      path.join(programFilesX86, 'Ollama', 'ollama.exe'),
+      path.join(localAppData, 'Programs', 'Ollama', 'ollama.exe'),
+    );
+  } else if (process.platform === 'darwin') {
+    candidates.push(
+      '/usr/local/bin/ollama',
+      '/opt/homebrew/bin/ollama',
+      '/Applications/Ollama.app/Contents/MacOS/Ollama',
+    );
+  } else {
+    candidates.push('/usr/local/bin/ollama', '/usr/bin/ollama', '/opt/ollama/bin/ollama');
+  }
+
+  cachedOllamaBinary = candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+  return cachedOllamaBinary;
 }
 
 function resolveModelSource() {
@@ -76,13 +111,14 @@ async function isOllamaRunning() {
 }
 
 function startOllamaServe() {
-  if (!commandExists('ollama')) {
+  const ollamaBinary = findOllamaBinary();
+  if (!ollamaBinary) {
     console.warn('Ollama is not installed or not on PATH. Skipping automatic start.');
     return false;
   }
 
   try {
-    const child = spawn('ollama', ['serve'], {
+    const child = spawn(ollamaBinary, ['serve'], {
       detached: true,
       stdio: 'ignore',
       env,
@@ -118,8 +154,11 @@ async function ensureOllamaOnline() {
 }
 
 function hasModel() {
+  const ollamaBinary = findOllamaBinary();
+  if (!ollamaBinary) return false;
+
   try {
-    execSync(`ollama show ${modelTag}`, { stdio: 'ignore', env });
+    execFileSync(ollamaBinary, ['show', modelTag], { stdio: 'ignore', env });
     return true;
   } catch {
     return false;
@@ -127,7 +166,8 @@ function hasModel() {
 }
 
 function ensureModel() {
-  if (!commandExists('ollama')) {
+  const ollamaBinary = findOllamaBinary();
+  if (!ollamaBinary) {
     console.warn('Ollama is not installed or not on PATH. Skipping automatic model download.');
     return;
   }
@@ -141,10 +181,12 @@ function ensureModel() {
     ensureModelfile();
     const resolvedSource = resolveModelSource();
     console.log(`Preparing Ollama model '${modelTag}' from ${resolvedSource} ...`);
-    execSync(`ollama create ${modelTag} -f "${modelfilePath}"`, { stdio: 'inherit', env });
+    execFileSync(ollamaBinary, ['create', modelTag, '-f', modelfilePath], { stdio: 'inherit', env });
     console.log(`Model '${modelTag}' downloaded and ready.`);
   } catch (error) {
-    console.warn(`Could not auto-create model '${modelTag}'. You can manually run:\nOLLAMA_HOST=${ollamaHost} ollama create ${modelTag} -f ${modelfilePath}\nReason: ${error.message}`);
+    console.warn(
+      `Could not auto-create model '${modelTag}'. You can manually run:\nOLLAMA_HOST=${ollamaHost} ${ollamaBinary} create ${modelTag} -f ${modelfilePath}\nReason: ${error.message}`,
+    );
   }
 }
 
