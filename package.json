@@ -4,8 +4,8 @@
   "description": "Local-first visual prompt assistant powered by Qwen and Fal.ai",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node scripts/prepare-ollama.js && node src/server.js",
+    "dev": "node scripts/prepare-ollama.js && nodemon src/server.js",
     "check:gpu": "node scripts/check-gpu.js"
   },
   "keywords": [],

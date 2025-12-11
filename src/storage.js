@@ -23,8 +23,8 @@ export function ensureDataDir() {
 function defaultSettings() {
   return {
     falApiKey: process.env.FAL_API_KEY || '',
-    ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5:latest'
+    ollamaHost: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
+    ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5-vl-3b-instruct-q8_0'
   };
 }
 

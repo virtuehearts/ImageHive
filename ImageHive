@@ -45,6 +45,7 @@ install_cmd() {
   ensure_env
   echo "Installing npm dependencies..."
   $PACKAGE_MANAGER install
+  echo "Defaults are prefilled for Ollama host/model/data dir; only set FAL_API_KEY if you want Fal.ai renders."
   echo "Optional: run '$PACKAGE_MANAGER run check:gpu' to verify GPU visibility."
 }
 
