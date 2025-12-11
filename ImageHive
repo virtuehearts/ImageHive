@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PID_FILE="$PROJECT_DIR/.imagehive.pid"
+LOG_FILE="$PROJECT_DIR/.imagehive.log"
+PACKAGE_MANAGER="npm"
+
+usage() {
+  cat <<USAGE
+ImageHive helper
+
+Usage: ./ImageHive <command>
+Commands:
+  install   Install dependencies and prepare local config
+  start     Start the ImageHive server in the background
+  stop      Stop the running ImageHive server
+  status    Show whether ImageHive is currently running
+USAGE
+}
+
+need_node() {
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Node.js is required. Please install Node 18 or newer." >&2
+    exit 1
+  fi
+  local major
+  major=$(node -p "process.versions.node.split('.') [0]")
+  if [[ "$major" -lt 18 ]]; then
+    echo "ImageHive needs Node.js 18+. Detected version: $(node -v)" >&2
+    exit 1
+  fi
+}
+
+ensure_env() {
+  if [[ ! -f "$PROJECT_DIR/.env" && -f "$PROJECT_DIR/.env.example" ]]; then
+    cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
+    echo "Created .env from .env.example. Update it with your local settings."
+  fi
+}
+
+install_cmd() {
+  need_node
+  cd "$PROJECT_DIR"
+  ensure_env
+  echo "Installing npm dependencies..."
+  $PACKAGE_MANAGER install
+  echo "Optional: run '$PACKAGE_MANAGER run check:gpu' to verify GPU visibility."
+}
+
+start_cmd() {
+  need_node
+  cd "$PROJECT_DIR"
+  ensure_env
+
+  if [[ -f "$PID_FILE" ]]; then
+    local existing
+    existing=$(cat "$PID_FILE")
+    if kill -0 "$existing" >/dev/null 2>&1; then
+      echo "ImageHive already running with PID $existing."
+      echo "Log file: $LOG_FILE"
+      exit 0
+    else
+      echo "Stale PID file found. Cleaning up."
+      rm -f "$PID_FILE"
+    fi
+  fi
+
+  echo "Starting ImageHive..."
+  nohup $PACKAGE_MANAGER run start >"$LOG_FILE" 2>&1 &
+  echo $! >"$PID_FILE"
+  echo "ImageHive started (PID $(cat "$PID_FILE"))."
+  echo "Logs: $LOG_FILE"
+}
+
+stop_cmd() {
+  if [[ ! -f "$PID_FILE" ]]; then
+    echo "No PID file found. ImageHive does not appear to be running."
+    return
+  fi
+  local pid
+  pid=$(cat "$PID_FILE")
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    echo "Stopping ImageHive (PID $pid)..."
+    kill "$pid"
+    rm -f "$PID_FILE"
+    echo "Stopped."
+  else
+    echo "Process $pid is not running. Cleaning up PID file."
+    rm -f "$PID_FILE"
+  fi
+}
+
+status_cmd() {
+  if [[ -f "$PID_FILE" ]]; then
+    local pid
+    pid=$(cat "$PID_FILE")
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      echo "ImageHive is running (PID $pid)."
+      echo "Logs: $LOG_FILE"
+      return
+    fi
+  fi
+  echo "ImageHive is not running."
+}
+
+case "${1:-}" in
+  install) install_cmd ;;
+  start) start_cmd ;;
+  stop) stop_cmd ;;
+  status) status_cmd ;;
+  *) usage ;;
+esac
