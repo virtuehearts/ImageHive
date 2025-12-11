@@ -21,6 +21,13 @@ const settingsForm = document.getElementById('settings-form');
 const falKey = document.getElementById('fal-key');
 const ollamaHost = document.getElementById('ollama-host');
 const ollamaModel = document.getElementById('ollama-model');
+const renderDetails = document.getElementById('render-details');
+const toggleRenderDetails = document.getElementById('toggle-render-details');
+const summaryAspect = document.getElementById('summary-aspect');
+const summaryResolution = document.getElementById('summary-resolution');
+const summaryJson = document.getElementById('summary-json');
+const confirmRender = document.getElementById('confirm-render');
+const editRender = document.getElementById('edit-render');
 
 const conversation = [];
 
@@ -96,6 +103,28 @@ function showIntroMessage() {
   appendMessage('bot', intro);
 }
 
+function updateRenderSummary() {
+  const aspectLabel = falAspectRatio?.selectedOptions?.[0]?.textContent || falAspectRatio.value;
+  const resolutionLabel = falResolution?.selectedOptions?.[0]?.textContent || falResolution.value;
+  summaryAspect.textContent = aspectLabel;
+  summaryResolution.textContent = resolutionLabel.replace('(default)', '').trim();
+
+  const promptJson = galleryJson.value.trim();
+  summaryJson.textContent = promptJson || 'Add a JSON prompt above to preview it here.';
+}
+
+function setRenderDetailsVisibility(open) {
+  if (open) {
+    renderDetails.classList.remove('hidden');
+    toggleRenderDetails.textContent = 'Hide JSON & Settings';
+    toggleRenderDetails.setAttribute('aria-expanded', 'true');
+  } else {
+    renderDetails.classList.add('hidden');
+    toggleRenderDetails.textContent = 'View JSON & Settings';
+    toggleRenderDetails.setAttribute('aria-expanded', 'false');
+  }
+}
+
 document.querySelectorAll('.suggestion').forEach((btn) => {
   btn.addEventListener('click', () => {
     chatMessage.value = btn.dataset.prompt;
@@ -156,7 +185,29 @@ async function persistGallery() {
 
 saveGallery.addEventListener('click', persistGallery);
 refreshGallery.addEventListener('click', loadGallery);
-renderFal.addEventListener('click', generateFalRender);
+renderFal.addEventListener('click', () => {
+  updateRenderSummary();
+  setRenderDetailsVisibility(true);
+  renderDetails.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+toggleRenderDetails.addEventListener('click', () => {
+  const isHidden = renderDetails.classList.contains('hidden');
+  updateRenderSummary();
+  setRenderDetailsVisibility(isHidden);
+});
+confirmRender.addEventListener('click', () => {
+  updateRenderSummary();
+  generateFalRender();
+});
+editRender.addEventListener('click', () => {
+  setRenderDetailsVisibility(true);
+  galleryJson.focus();
+});
+
+[falAspectRatio, falResolution, galleryJson].forEach((el) => {
+  el?.addEventListener('change', updateRenderSummary);
+  el?.addEventListener('input', updateRenderSummary);
+});
 
 openSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -189,6 +240,7 @@ showIntroMessage();
 fetchHealth();
 hydrateSettings();
 loadGallery();
+updateRenderSummary();
 
 async function generateFalRender() {
   const promptJson = galleryJson.value.trim();
