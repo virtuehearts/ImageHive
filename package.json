@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node scripts/prepare-ollama.js && node src/server.js",
+    "start:managed": "node scripts/startup.js",
     "dev": "node scripts/prepare-ollama.js && nodemon src/server.js",
     "check:gpu": "node scripts/check-gpu.js"
   },

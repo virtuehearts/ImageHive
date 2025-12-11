@@ -41,9 +41,15 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
      ollama create qwen2.5-vl-3b-instruct-q8_0 -f modelfiles/qwen2.5-vl-3b-instruct-q8_0.Modelfile
      ```
 5. **Run ImageHive**
-   ```bash
-   ./ImageHive start
-   ```
+   - Cross-platform (Windows, macOS, Linux, Codespaces):
+     ```bash
+     npm run start:managed
+     ```
+     This invokes the Node-based startup helper (`scripts/startup.js`) which logs to `logs/server.log`, prepares Ollama, and starts the server with error reporting. It works the same in GitHub Codespaces or PowerShell.
+   - Bash helper (Linux/macOS):
+     ```bash
+     ./ImageHive start
+     ```
    Open your browser at `http://localhost:3000` to chat, manage settings (including Fal.ai key), and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
 
 ## Architecture

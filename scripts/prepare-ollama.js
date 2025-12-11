@@ -22,8 +22,9 @@ const env = { ...process.env, OLLAMA_HOST: ollamaHost };
 const modelfilePath = path.join(projectRoot, 'modelfiles', `${modelTag}.Modelfile`);
 
 function commandExists(cmd) {
+  const checkCommand = process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`;
   try {
-    execSync(`command -v ${cmd}`, { stdio: 'ignore' });
+    execSync(checkCommand, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
