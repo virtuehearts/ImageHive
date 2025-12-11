@@ -178,13 +178,47 @@ async function ensureHuggingFaceDownload() {
     throw new Error(`Failed to download model file: ${res.status} ${res.statusText}`);
   }
 
+  const contentLength = Number(res.headers.get('content-length')) || null;
+  const startTime = Date.now();
+  let downloaded = 0;
+
+  const formatBytes = (bytes) => {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  };
+
+  const renderProgress = () => {
+    if (contentLength) {
+      const percent = Math.min(100, (downloaded / contentLength) * 100);
+      const filled = Math.round((percent / 100) * 20);
+      const bar = `${'='.repeat(filled)}${' '.repeat(20 - filled)}`;
+      process.stdout.write(
+        `\r[${bar}] ${percent.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(contentLength)})`,
+      );
+    } else {
+      const seconds = (Date.now() - startTime) / 1000;
+      process.stdout.write(`\rDownloaded ${formatBytes(downloaded)} in ${seconds.toFixed(1)}s`);
+    }
+  };
+
   const fileStream = fs.createWriteStream(modelDownloadPath);
   await new Promise((resolve, reject) => {
+    res.body.on('data', (chunk) => {
+      downloaded += chunk.length;
+      renderProgress();
+    });
     res.body.pipe(fileStream);
     res.body.on('error', reject);
     fileStream.on('finish', resolve);
     fileStream.on('error', reject);
   });
+  process.stdout.write('\n');
   console.log('Model file downloaded.');
 }
 
