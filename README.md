@@ -21,6 +21,8 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
 1. **Install dependencies (Node.js ≥ 18)**
    ```bash
    ./ImageHive install
+   # or use the alias
+   ./HiveMind install
    ```
    This copies `.env.example` into `.env` (if missing) and installs npm packages using the defaults: local Ollama host (`127.0.0.1:11434`), the Unsloth Qwen2.5-VL-3B-Instruct Q8_0 tag, and `./data` for storage.
 2. **Configure environment (only Fal.ai if you want)**
@@ -31,10 +33,7 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
    ```
    The script reports whether `nvidia-smi` detects a GPU. The server will use GPU when available and fall back to CPU otherwise.
 4. **Start the local VLM backend**
-   - Start the Ollama service (if not already running):
-     ```bash
-     ollama serve
-     ```
+   - The startup helper now checks whether `ollama serve` is reachable on your configured host and will auto-start it locally when pointing at `127.0.0.1`.
    - ImageHive will auto-create the `qwen2.5-vl-3b-instruct-q8_0` model from the Unsloth GGUF on first run. If you prefer to prepare it yourself:
      ```bash
      OLLAMA_HOST=http://127.0.0.1:11434 \
