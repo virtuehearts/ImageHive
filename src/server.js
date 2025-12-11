@@ -16,6 +16,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 ensureDataDir();
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -87,6 +88,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`ImageHive server running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`ImageHive server running at http://${HOST}:${PORT}`);
 });

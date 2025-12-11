@@ -87,7 +87,7 @@ clearChat.addEventListener('click', () => {
 function showIntroMessage() {
   const intro = [
     'Hi, I\'m ImageHive — your assistant for image styles, themes, and aspect ratios.',
-    'Tell me the vibe, genre, or medium you want and I\'ll craft a prompt, suggest the best aspect ratio, and pick Fal.ai or OpenRouter models to run it.'
+    'I can recommend Fal.ai runners, generate 3×3 cinematic scene builders, and craft production-ready prompts so you can go straight to creating.'
   ].join('\n');
   appendMessage('bot', intro);
 }

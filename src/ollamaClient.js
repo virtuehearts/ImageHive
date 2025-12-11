@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { exec } from 'child_process';
 import util from 'util';
 import { loadSettings } from './storage.js';
+import { buildSystemPrompt } from './systemPrompt.js';
 
 const execAsync = util.promisify(exec);
 
@@ -27,9 +28,10 @@ export async function chatWithQwen(messages) {
   const settings = loadSettings();
   const gpu = await getGpuStatus();
   const useGpu = gpu.available;
+  const promptPreamble = { role: 'system', content: buildSystemPrompt() };
   const body = {
     model: settings.ollamaModel,
-    messages,
+    messages: [promptPreamble, ...messages],
     stream: false,
     options: {
       num_gpu: useGpu ? 1 : 0,
