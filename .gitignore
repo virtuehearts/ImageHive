@@ -4,3 +4,5 @@ node_modules
 .imagehive.log
 .imagehive.pid
 /logs
+
+artifacts/
