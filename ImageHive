@@ -54,6 +54,9 @@ start_cmd() {
   cd "$PROJECT_DIR"
   ensure_env
 
+  echo "Ensuring Ollama is running and the required model is available..."
+  node scripts/prepare-ollama.js
+
   if [[ -f "$PID_FILE" ]]; then
     local existing
     existing=$(cat "$PID_FILE")
