@@ -13,7 +13,7 @@
         <span class="logo">🐝</span>
         <div>
           <div class="title">ImageHive</div>
-          <div class="subtitle">Local Qwen + Fal.ai helper</div>
+          <div class="subtitle">ChatGPT-style guide for styles, ratios & models</div>
         </div>
       </div>
       <div class="status">
@@ -26,14 +26,36 @@
       <section class="panel chat-panel">
         <div class="panel-header">
           <div>
-            <h2>Chat</h2>
-            <p class="muted">Ask Qwen for prompt crafting or image JSON helpers.</p>
+            <h2>Speak with ImageHive</h2>
+            <p class="muted">Plan styles, pick aspect ratios, and choose Fal.ai or OpenRouter-ready models.</p>
           </div>
           <button id="clear-chat" class="ghost">Clear</button>
         </div>
+
+        <div class="assistant-intro">
+          <div>
+            <p class="intro-title">ImageHive is your visual prompt coach.</p>
+            <p class="muted">Describe the mood, era, palette, or camera feel you want. ImageHive will return ready-to-run prompts, JSON for prompt tools, and model suggestions with the right aspect ratio.</p>
+          </div>
+          <div class="intro-badges">
+            <span class="chip">Style + genre recipes</span>
+            <span class="chip">Aspect ratio guardrails</span>
+            <span class="chip">Fal.ai & OpenRouter picks</span>
+          </div>
+        </div>
+
+        <div class="quick-prompts" aria-label="Suggested prompts">
+          <button class="suggestion" data-prompt="Give me a dreamy anime poster prompt for Fal.ai with a 9:16 aspect ratio.">Dreamy anime 9:16</button>
+          <button class="suggestion" data-prompt="Design a minimal sci-fi UI theme and suggest which OpenRouter models to use.">Sci-fi UI theme</button>
+          <button class="suggestion" data-prompt="Convert this into JSON_prompt_tool format and include a 1:1 album cover composition.">Album cover JSON</button>
+          <button class="suggestion" data-prompt="Recommend aspect ratios for landscape concept art plus a cozy color palette.">Aspect ratio advice</button>
+        </div>
+
         <div id="chat-log" class="chat-log"></div>
+
         <form id="chat-form" class="chat-input">
-          <textarea id="chat-message" placeholder="Message ImageHive..." rows="3"></textarea>
+          <label class="sr-only" for="chat-message">Message ImageHive</label>
+          <textarea id="chat-message" placeholder="Ask ImageHive about styles, genres, aspect ratios, or which model to run..." rows="3"></textarea>
           <div class="input-actions">
             <label class="inline"><input type="checkbox" id="save-json" /> Save response as JSON prompt</label>
             <button type="submit">Send</button>

@@ -20,10 +20,14 @@ const ollamaModel = document.getElementById('ollama-model');
 
 const conversation = [];
 
+function formatContent(content) {
+  return (content ?? '').toString().replace(/\n/g, '<br/>');
+}
+
 function appendMessage(role, content) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
-  div.innerHTML = `<small>${role === 'user' ? 'You' : 'ImageHive'}</small>${content}`;
+  div.innerHTML = `<small>${role === 'user' ? 'You' : 'ImageHive'}</small>${formatContent(content)}`;
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
@@ -77,6 +81,22 @@ chatForm.addEventListener('submit', (e) => {
 clearChat.addEventListener('click', () => {
   conversation.length = 0;
   chatLog.innerHTML = '';
+  showIntroMessage();
+});
+
+function showIntroMessage() {
+  const intro = [
+    'Hi, I\'m ImageHive — your assistant for image styles, themes, and aspect ratios.',
+    'Tell me the vibe, genre, or medium you want and I\'ll craft a prompt, suggest the best aspect ratio, and pick Fal.ai or OpenRouter models to run it.'
+  ].join('\n');
+  appendMessage('bot', intro);
+}
+
+document.querySelectorAll('.suggestion').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    chatMessage.value = btn.dataset.prompt;
+    chatMessage.focus();
+  });
 });
 
 async function loadGallery() {
@@ -160,6 +180,7 @@ async function hydrateSettings() {
   if (data.ollamaModel) ollamaModel.value = data.ollamaModel;
 }
 
+showIntroMessage();
 fetchHealth();
 hydrateSettings();
 loadGallery();

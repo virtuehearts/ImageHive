@@ -20,14 +20,11 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
 
 1. **Install dependencies (Node.js ≥ 18)**
    ```bash
-   npm install
+   ./ImageHive install
    ```
+   This copies `.env.example` into `.env` (if missing) and installs npm packages.
 2. **Configure environment**
-   - Copy the example env file and fill in values:
-     ```bash
-     cp .env.example .env
-     ```
-   - Key variables:
+   - Update `.env` values as needed:
      - `PORT` — Port for the Node.js server (default: `3000`).
      - `OLLAMA_HOST` — URL for the local Ollama service (default: `http://localhost:11434`).
      - `OLLAMA_MODEL` — Ollama model tag to use (default: `qwen2.5:latest`).
@@ -49,9 +46,9 @@ ImageHive is a friendly, local AI assistant for image creation. It runs Qwen2.5-
      ```
 5. **Run ImageHive**
    ```bash
-   npm run start
+   ./ImageHive start
    ```
-   Open your browser at `http://localhost:3000` to chat, manage settings, and save JSON prompts to the gallery.
+   Open your browser at `http://localhost:3000` to chat, manage settings, and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
 
 ## Architecture
 
