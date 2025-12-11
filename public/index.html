@@ -61,6 +61,45 @@
             <button type="submit">Send</button>
           </div>
         </form>
+
+        <section class="render-confirmation" aria-live="polite">
+          <div class="render-confirmation__header">
+            <div>
+              <p class="render-label">Generating with these settings</p>
+              <button id="toggle-render-details" type="button" class="link">View JSON &amp; Settings</button>
+            </div>
+            <div class="render-price">
+              <span class="generate-icon" aria-hidden="true">⚡</span>
+              <div>
+                <div class="render-title">Generate</div>
+                <div class="muted">Your request will cost $0.04 per image.</div>
+              </div>
+            </div>
+          </div>
+          <div id="render-details" class="render-details hidden">
+            <dl class="render-grid">
+              <div>
+                <dt>Aspect ratio</dt>
+                <dd id="summary-aspect">9:16 (default)</dd>
+              </div>
+              <div>
+                <dt>Resolution</dt>
+                <dd id="summary-resolution">Auto 2K</dd>
+              </div>
+            </dl>
+            <div class="render-json-block">
+              <div class="render-json-header">
+                <span>JSON settings</span>
+                <span class="muted">Preview before sending</span>
+              </div>
+              <pre id="summary-json" class="muted">Add a JSON prompt above to preview it here.</pre>
+            </div>
+            <div class="render-actions">
+              <button id="edit-render" type="button" class="ghost">Edit</button>
+              <button id="confirm-render" type="button">Confirm &amp; Generate</button>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section class="panel gallery-panel">
@@ -88,6 +127,7 @@
               <label class="stacked">Resolution
                 <select id="fal-resolution">
                   <option value="auto-2k" selected>Auto 2K (default)</option>
+                  <option value="auto-4k">Auto 4K</option>
                   <option value="auto-1k">Auto 1K</option>
                   <option value="1024x1024">1024×1024</option>
                   <option value="1536x1024">1536×1024</option>
