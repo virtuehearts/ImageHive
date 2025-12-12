@@ -54,16 +54,7 @@ start_cmd() {
   cd "$PROJECT_DIR"
   ensure_env
 
-  cat <<'BANNER'
-  ___                              _   _     _               _
- |_ _|_ __ ___   __ _  __ _  ___  | | | | __| | ___  ___  __| | ___   ___
-  | || '_ ` _ \ / _` |/ _` |/ _ \ | | | |/ _` |/ _ \/ _ \/ _` |/ _ \ / _ \
-  | || | | | | | (_| | (_| |  __/ | |_| | (_| |  __/  __/ (_| | (_) | (_) |
- |___|_| |_| |_|\__,_|\__, |\___|  \___/ \__,_|\___|\___|\__,_|\___/ \___/
-                      |___/
-ImageHive runtime starting.
-created by darknet.ca labs ( admin@darknet.ca )
-BANNER
+  echo "ImageHive ( Image creation helper engine ) runtime 0.1B by darknet.ca labs."
 
   echo "Ensuring vLLM is running and the required model is available..."
   node scripts/prepare-vllm.js
