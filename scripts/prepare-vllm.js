@@ -234,11 +234,44 @@ function writeVllmPid(pid) {
   fs.writeFileSync(vllmPidFile, String(pid));
 }
 
+async function hasPythonModule(moduleName) {
+  try {
+    await execAsync(
+      `python3 - <<'PY'\nimport importlib.util, sys\nsys.exit(0 if importlib.util.find_spec("${moduleName}") else 1)\nPY`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureVllmDependency() {
+  const installed = await hasPythonModule('vllm');
+  if (installed) return true;
+
+  console.warn("Python package 'vllm' is missing. Attempting to install it...");
+
+  try {
+    await execAsync('python3 -m pip install --quiet --no-cache-dir "vllm>=0.4.2"');
+    console.log("Installed 'vllm' Python package for local inference.");
+    return true;
+  } catch (error) {
+    console.warn(
+      `Automatic installation of 'vllm' failed: ${error.message}. ` +
+        'Install it manually with "python3 -m pip install vllm" or set VLLM_HOST to a reachable server.',
+    );
+    return false;
+  }
+}
+
 async function startVllmServer(gpuInfo) {
   if (!isLocalHost(vllmHost)) {
     console.warn(`Skipping auto-start because VLLM_HOST is remote (${vllmHost}).`);
     return false;
   }
+
+  const dependencyReady = await ensureVllmDependency();
+  if (!dependencyReady) return false;
 
   const existingPid = readExistingVllmPid();
   if (existingPid) {
