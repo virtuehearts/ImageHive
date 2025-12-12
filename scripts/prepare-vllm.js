@@ -303,10 +303,15 @@ async function startVllmServer(gpuInfo) {
 
   console.log('Starting local vLLM server...');
   const outFd = fs.openSync(vllmLogFile, 'a');
+  const env = { ...process.env };
+  if (!gpuInfo.available) {
+    env.VLLM_TARGET_DEVICE = 'cpu';
+  }
   let child;
   try {
     child = spawn('python3', args, {
       cwd: projectRoot,
+      env,
       stdio: ['ignore', outFd, outFd],
       detached: true,
     });
