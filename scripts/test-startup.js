@@ -1,22 +1,18 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { startMockOllama } from './mock-ollama-server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
-async function runPrepareWithMock(mockHost) {
+async function runPrepare() {
   return new Promise((resolve, reject) => {
     const outputChunks = [];
     const child = spawn(process.execPath, ['scripts/prepare-ollama.js'], {
       cwd: projectRoot,
       env: {
         ...process.env,
-        OLLAMA_HOST: mockHost,
-        SKIP_OLLAMA_DOWNLOAD: '1',
-        SKIP_OLLAMA_MODEL: '1',
       },
     });
 
@@ -39,21 +35,15 @@ async function runPrepareWithMock(mockHost) {
 }
 
 async function main() {
-  const modelTag = process.env.OLLAMA_MODEL || 'qwen2.5-vl-3b-instruct-q8_0';
-  const { server, url: mockHost } = await startMockOllama(modelTag);
-  try {
-    const output = await runPrepareWithMock(mockHost);
-    // eslint-disable-next-line no-console
-    console.log('Startup test completed successfully. Output snippet:');
-    // eslint-disable-next-line no-console
-    console.log(
-      output
-        .split('\n')
-        .filter((line) => /Ollama responded to startup probe/.test(line))[0],
-    );
-  } finally {
-    server.close();
-  }
+  const output = await runPrepare();
+  // eslint-disable-next-line no-console
+  console.log('Startup test completed successfully. Output snippet:');
+  // eslint-disable-next-line no-console
+  console.log(
+    output
+      .split('\n')
+      .filter((line) => /Ollama responded to startup probe/.test(line))[0],
+  );
 }
 
 main().catch((error) => {
