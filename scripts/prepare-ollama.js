@@ -153,6 +153,46 @@ async function ensureOllamaOnline() {
   return false;
 }
 
+async function verifyOllamaChat() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  const probeMessage =
+    'hello, You are ImageHive and AI assistant here to help the user. please tell us your capabilities.';
+
+  try {
+    const res = await fetch(`${ollamaHost}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelTag,
+        messages: [{ role: 'user', content: probeMessage }],
+        stream: false,
+        options: { temperature: 0.2 },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
+    }
+
+    const data = await res.json();
+    const reply = data.message?.content?.trim();
+    if (!reply) throw new Error('Empty response from Ollama chat probe.');
+
+    const snippet = reply.length > 220 ? `${reply.slice(0, 220)}…` : reply;
+    console.log(`Ollama responded to startup probe: ${snippet}`);
+    return true;
+  } catch (error) {
+    console.warn(`Ollama chat probe failed: ${error.message}`);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function hasModel() {
   const ollamaBinary = findOllamaBinary();
   if (!ollamaBinary) return false;
@@ -274,6 +314,11 @@ try {
     return;
   } else {
     ensureModel();
+    const chatReady = await verifyOllamaChat();
+    if (!chatReady) {
+      process.exitCode = 1;
+      return;
+    }
   }
 } catch (error) {
   console.warn(`Startup prep skipped: ${error.message}`);
