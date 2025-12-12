@@ -23,8 +23,8 @@ export function ensureDataDir() {
 function defaultSettings() {
   return {
     falApiKey: process.env.FAL_API_KEY || '',
-    vllmHost: process.env.VLLM_HOST || process.env.OLLAMA_HOST || 'http://127.0.0.1:8000',
-    vllmModel: process.env.VLLM_MODEL || process.env.OLLAMA_MODEL || 'Qwen2.5-VL-3B-Instruct'
+    ollamaHost: process.env.OLLAMA_HOST || process.env.VLLM_HOST || 'http://127.0.0.1:11434',
+    ollamaModel: process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-3b-instruct',
   };
 }
 
@@ -33,8 +33,10 @@ export function loadSettings() {
     const text = fs.readFileSync(settingsPath, 'utf-8');
     const stored = JSON.parse(text);
     const migrated = { ...stored };
-    if (!migrated.vllmHost && stored.ollamaHost) migrated.vllmHost = stored.ollamaHost;
-    if (!migrated.vllmModel && stored.ollamaModel) migrated.vllmModel = stored.ollamaModel;
+    if (!migrated.ollamaHost && stored.vllmHost) migrated.ollamaHost = stored.vllmHost;
+    if (!migrated.ollamaModel && stored.vllmModel) migrated.ollamaModel = stored.vllmModel;
+    if (!migrated.ollamaHost && stored.ollamaHost) migrated.ollamaHost = stored.ollamaHost;
+    if (!migrated.ollamaModel && stored.ollamaModel) migrated.ollamaModel = stored.ollamaModel;
     return { ...defaultSettings(), ...migrated };
   } catch {
     return defaultSettings();
