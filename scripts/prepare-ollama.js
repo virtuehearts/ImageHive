@@ -27,6 +27,8 @@ const modelDir = path.join(dataDir, 'models');
 const modelFileName = path.basename(new URL(modelUrl).pathname);
 const modelDownloadPath = path.join(modelDir, modelFileName);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const skipDownload = process.env.SKIP_OLLAMA_DOWNLOAD === '1' || process.env.SKIP_HF_DOWNLOAD === '1';
+const skipModelCreate = process.env.SKIP_OLLAMA_MODEL === '1';
 
 function commandExists(cmd) {
   const checkCommand = process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`;
@@ -206,6 +208,11 @@ function hasModel() {
 }
 
 function ensureModel() {
+  if (skipModelCreate) {
+    console.log('Skipping model creation because SKIP_OLLAMA_MODEL=1.');
+    return;
+  }
+
   const ollamaBinary = findOllamaBinary();
   if (!ollamaBinary) {
     console.warn('Ollama is not installed or not on PATH. Skipping automatic model download.');
@@ -251,6 +258,11 @@ function ensureEnvDefaults() {
 }
 
 async function ensureHuggingFaceDownload() {
+  if (skipDownload) {
+    console.log('Skipping Hugging Face model download because SKIP_OLLAMA_DOWNLOAD=1.');
+    return;
+  }
+
   if (fs.existsSync(modelDownloadPath)) return;
 
   fs.mkdirSync(modelDir, { recursive: true });
@@ -304,22 +316,20 @@ async function ensureHuggingFaceDownload() {
   console.log('Model file downloaded.');
 }
 
-try {
-  await ensureEnvDefaults();
-  await ensureHuggingFaceDownload();
-  const online = await ensureOllamaOnline();
-  if (!online) {
-    console.warn('Ollama host is not reachable; model preparation skipped.');
-    process.exitCode = 1;
-    return;
-  } else {
-    ensureModel();
-    const chatReady = await verifyOllamaChat();
-    if (!chatReady) {
+  try {
+    await ensureEnvDefaults();
+    await ensureHuggingFaceDownload();
+    const online = await ensureOllamaOnline();
+    if (!online) {
+      console.warn('Ollama host is not reachable; model preparation skipped.');
       process.exitCode = 1;
-      return;
+    } else {
+      ensureModel();
+      const chatReady = await verifyOllamaChat();
+      if (!chatReady) {
+        process.exitCode = 1;
+      }
     }
+  } catch (error) {
+    console.warn(`Startup prep skipped: ${error.message}`);
   }
-} catch (error) {
-  console.warn(`Startup prep skipped: ${error.message}`);
-}
