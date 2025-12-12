@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+  <div id="startup-overlay" class="startup-overlay hidden" role="status" aria-live="polite">
+    <div class="startup-card">
+      <div class="startup-spinner" aria-hidden="true"></div>
+      <div>
+        <p class="startup-title">Preparing ImageHive</p>
+        <p id="startup-message" class="muted">Starting Ollama and downloading Qwen2.5-VL-3B-Instruct…</p>
+      </div>
+    </div>
+  </div>
   <div class="workspace">
     <aside class="sidebar">
       <div class="sidebar-brand">

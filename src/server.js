@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureDataDir, loadSettings, saveSettings, loadGallery, saveGallery } from './storage.js';
-import { chatWithOllama, getGpuStatus } from './ollamaClient.js';
+import { chatWithOllama, getGpuStatus, getOllamaStatus } from './ollamaClient.js';
 import { generateFalImage } from './falClient.js';
 
 dotenv.config();
@@ -25,7 +25,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/api/health', async (req, res) => {
   try {
     const gpuStatus = await getGpuStatus();
-    res.json({ status: 'ok', gpu: gpuStatus });
+    const ollama = await getOllamaStatus();
+    res.json({ status: 'ok', gpu: gpuStatus, ollama });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
