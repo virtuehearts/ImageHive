@@ -45,6 +45,8 @@ install_cmd() {
   ensure_env
   echo "Installing npm dependencies..."
   $PACKAGE_MANAGER install
+  echo "Ensuring Ollama and the Qwen2.5-VL-3B-Instruct model are installed..."
+  node scripts/prepare-ollama.js --install
   echo "Defaults are prefilled for Ollama host/model/data dir; only set FAL_API_KEY if you want Fal.ai renders."
   echo "Optional: run '$PACKAGE_MANAGER run check:gpu' to verify GPU visibility."
 }
@@ -55,9 +57,6 @@ start_cmd() {
   ensure_env
 
   echo "ImageHive ( Image creation helper engine ) runtime 0.1B by darknet.ca labs."
-
-  echo "Ensuring Ollama is running and the required model is available..."
-  node scripts/prepare-ollama.js
 
   if [[ -f "$PID_FILE" ]]; then
     local existing
