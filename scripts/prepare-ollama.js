@@ -23,6 +23,19 @@ const modelName = process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5
 const ollamaHost = process.env.OLLAMA_HOST || process.env.VLLM_HOST || defaultHost;
 const allowOffline = process.env.ALLOW_OLLAMA_OFFLINE === '1' || process.env.ALLOW_VLLM_OFFLINE === '1';
 
+async function detectGpu() {
+  try {
+    const { stdout } = await execAsync('nvidia-smi --query-gpu=name --format=csv,noheader');
+    const devices = stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return { available: devices.length > 0, devices };
+  } catch (error) {
+    return { available: false, error: error.message, devices: [] };
+  }
+}
+
 function ensureEnvDefaults() {
   if (!fs.existsSync(envPath)) return;
   const envText = fs.readFileSync(envPath, 'utf-8');
@@ -103,10 +116,39 @@ async function ensureOllamaBinary() {
     return true;
   } catch (error) {
     console.warn(
-      `Ollama CLI is not available: ${error.message}. Install it from https://ollama.com/download and retry.`,
+      `Ollama CLI is not available: ${error.message}. Attempting automatic installation...`,
+    );
+    return installOllama();
+  }
+}
+
+async function installOllama() {
+  try {
+    console.log('Installing Ollama...');
+    await execAsync('curl -fsSL https://ollama.com/install.sh | sh');
+    const { stdout } = await execAsync('ollama --version');
+    console.log(`Ollama installed successfully: ${stdout.trim()}`);
+    return true;
+  } catch (installError) {
+    console.warn(
+      `Automatic Ollama installation failed: ${installError.message}. Please install manually from https://ollama.com/download.`,
     );
     return false;
   }
+}
+
+async function getOllamaLaunchEnv() {
+  const gpu = await detectGpu();
+  const env = { ...process.env };
+
+  if (!gpu.available) {
+    env.OLLAMA_NUM_GPU = '0';
+    console.log('No GPU detected. Ollama will run in CPU mode.');
+  } else {
+    console.log(`Detected GPU devices for Ollama: ${gpu.devices.join(', ')}`);
+  }
+
+  return env;
 }
 
 async function startOllamaServer() {
@@ -127,12 +169,13 @@ async function startOllamaServer() {
   ensureLogDirectory();
   console.log('Starting local Ollama server...');
   const outFd = fs.openSync(ollamaLogFile, 'a');
+  const ollamaEnv = await getOllamaLaunchEnv();
 
   let child;
   try {
     child = spawn('ollama', ['serve'], {
       cwd: projectRoot,
-      env: { ...process.env },
+      env: ollamaEnv,
       stdio: ['ignore', outFd, outFd],
       detached: true,
     });
@@ -173,8 +216,12 @@ async function ensureModelAvailable() {
   }
 
   console.log(`Ensuring Ollama model '${modelName}' is available...`);
+  const ollamaEnv = await getOllamaLaunchEnv();
   return new Promise((resolve) => {
-    const child = spawn('ollama', ['pull', modelName], { cwd: projectRoot });
+    const child = spawn('ollama', ['pull', modelName], {
+      cwd: projectRoot,
+      env: ollamaEnv,
+    });
     child.stdout.on('data', (data) => process.stdout.write(data.toString()));
     child.stderr.on('data', (data) => process.stderr.write(data.toString()));
     child.on('close', (code) => {
