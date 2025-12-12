@@ -24,7 +24,7 @@ We are actively seeking funding and collaborators to add more image providers an
    ```bash
    ./ImageHive install
    ```
-   The helper script copies `.env.example` into `.env` (if missing) and installs npm packages using sensible defaults: local Ollama host (`127.0.0.1:11434`), the Qwen2.5-VL-3B-Instruct model name, and `./data` for storage. Install [Ollama](https://ollama.com/download) before starting ImageHive.
+   The helper script copies `.env.example` into `.env` (if missing), installs npm packages, installs Ollama if needed, downloads the local **Qwen2.5-VL-3B-Instruct Q8_0 GGUF** with a live progress bar, and builds the Ollama model (GPU-enabled when available). Defaults target local Ollama host (`127.0.0.1:11434`), the Qwen2.5-VL-3B-Instruct model name, and `./data` for storage.
 2. **Configure environment (only Fal.ai if you want)**
    - The only value you need to add manually is `FAL_API_KEY` (for optional Fal.ai renders). Host, model, and data directory are prefilled and auto-created at runtime.
    - If your Ollama server runs on a different port or machine, update `OLLAMA_HOST` and `OLLAMA_MODEL` in `.env`.

@@ -13,6 +13,11 @@ const envPath = path.join(projectRoot, '.env');
 const ollamaPidFile = path.join(projectRoot, '.ollama.pid');
 const logDir = path.join(projectRoot, 'logs');
 const ollamaLogFile = path.join(logDir, 'ollama.log');
+const modelDir = path.join(projectRoot, 'modelfiles');
+const ggufFile = path.join(modelDir, 'Qwen2.5-VL-3B-Instruct-Q8_0.gguf');
+const modelDownloadUrl =
+  'https://huggingface.co/unsloth/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q8_0.gguf?download=true';
+const modelfilePath = path.join(modelDir, 'qwen2.5-vl-3b-instruct-q8_0.Modelfile');
 
 const execAsync = util.promisify(exec);
 
@@ -22,6 +27,11 @@ const defaultHost = 'http://127.0.0.1:11434';
 const modelName = process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-3b-instruct';
 const ollamaHost = process.env.OLLAMA_HOST || process.env.VLLM_HOST || defaultHost;
 const allowOffline = process.env.ALLOW_OLLAMA_OFFLINE === '1' || process.env.ALLOW_VLLM_OFFLINE === '1';
+const isInstallMode = process.argv.includes('--install');
+
+function describeMode() {
+  return isInstallMode ? 'install' : 'startup verification';
+}
 
 async function detectGpu() {
   try {
@@ -34,6 +44,17 @@ async function detectGpu() {
   } catch (error) {
     return { available: false, error: error.message, devices: [] };
   }
+}
+
+function reportGpuStatus(prefix = 'GPU status') {
+  return detectGpu().then((gpu) => {
+    if (gpu.available) {
+      console.log(`${prefix}: detected devices -> ${gpu.devices.join(', ')}`);
+    } else {
+      console.log(`${prefix}: no GPU detected (falling back to CPU).`);
+    }
+    return gpu;
+  });
 }
 
 function ensureEnvDefaults() {
@@ -109,6 +130,85 @@ function writeOllamaPid(pid) {
   fs.writeFileSync(ollamaPidFile, String(pid));
 }
 
+function formatBytesMB(bytes) {
+  return bytes / (1024 * 1024);
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '??s';
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.max(0, Math.round(seconds % 60));
+  return `${mins}m${secs.toString().padStart(2, '0')}s`;
+}
+
+async function downloadWithProgress(url, destination) {
+  console.log(`Downloading model file to ${destination}`);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Download failed with status ${res.status} ${res.statusText}`);
+  }
+
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+
+  const totalBytes = Number(res.headers.get('content-length')) || 0;
+  const totalMb = totalBytes ? formatBytesMB(totalBytes) : null;
+  const startTime = Date.now();
+  let downloadedBytes = 0;
+
+  return new Promise((resolve, reject) => {
+    const outStream = fs.createWriteStream(destination);
+
+    const renderProgress = () => {
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      const speedMb = elapsedSec ? formatBytesMB(downloadedBytes) / elapsedSec : 0;
+      const pct = totalBytes ? ((downloadedBytes / totalBytes) * 100).toFixed(1) : '??';
+      const etaSec = speedMb > 0 && totalBytes
+        ? (formatBytesMB(totalBytes - downloadedBytes) / speedMb)
+        : NaN;
+      const humanEta = formatDuration(etaSec);
+      const downloadedMb = formatBytesMB(downloadedBytes).toFixed(1);
+      const totalMbText = totalMb ? totalMb.toFixed(1) : '??';
+      const line = `  progress: ${pct}% (${downloadedMb} / ${totalMbText} MB) - ${speedMb.toFixed(2)} MB/s - ETA ${humanEta}`;
+      process.stdout.write(`\r${line}`);
+    };
+
+    res.body.on('data', (chunk) => {
+      downloadedBytes += chunk.length;
+      outStream.write(chunk);
+      renderProgress();
+    });
+
+    res.body.on('end', () => {
+      outStream.end();
+      renderProgress();
+      process.stdout.write('\n');
+      resolve();
+    });
+
+    res.body.on('error', (error) => {
+      outStream.destroy();
+      fs.rmSync(destination, { force: true });
+      reject(error);
+    });
+  });
+}
+
+async function ensureLocalModelFile() {
+  if (fs.existsSync(ggufFile)) {
+    const stats = fs.statSync(ggufFile);
+    const mb = formatBytesMB(stats.size).toFixed(1);
+    console.log(`Model file already present (${mb} MB): ${ggufFile}`);
+    return true;
+  }
+
+  await downloadWithProgress(modelDownloadUrl, ggufFile);
+  const stats = fs.statSync(ggufFile);
+  const mb = formatBytesMB(stats.size).toFixed(1);
+  console.log(`Downloaded model file (${mb} MB).`);
+  return true;
+}
+
 async function ensureOllamaBinary() {
   try {
     const { stdout } = await execAsync('ollama --version');
@@ -149,6 +249,46 @@ async function getOllamaLaunchEnv() {
   }
 
   return env;
+}
+
+async function ensureModelCreated() {
+  try {
+    await execAsync(`ollama show ${modelName}`);
+    console.log(`Ollama model '${modelName}' already exists.`);
+    return true;
+  } catch {
+    // fall through to create
+  }
+
+  if (!fs.existsSync(modelfilePath)) {
+    console.warn(`Modelfile missing at ${modelfilePath}`);
+    return false;
+  }
+
+  console.log(`Creating Ollama model '${modelName}' from ${modelfilePath}...`);
+  const ollamaEnv = await getOllamaLaunchEnv();
+
+  return new Promise((resolve) => {
+    const child = spawn('ollama', ['create', modelName, '-f', modelfilePath], {
+      cwd: projectRoot,
+      env: ollamaEnv,
+    });
+    child.stdout.on('data', (data) => process.stdout.write(data.toString()));
+    child.stderr.on('data', (data) => process.stderr.write(data.toString()));
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log(`Created model '${modelName}'.`);
+        resolve(true);
+      } else {
+        console.warn(`ollama create exited with code ${code}`);
+        resolve(false);
+      }
+    });
+    child.on('error', (error) => {
+      console.warn(`Failed to create model '${modelName}': ${error.message}`);
+      resolve(false);
+    });
+  });
 }
 
 async function startOllamaServer() {
@@ -211,32 +351,21 @@ async function ensureModelAvailable() {
 
   const binaryPresent = await ensureOllamaBinary();
   if (!binaryPresent) {
-    console.warn('Cannot pull model locally because the Ollama CLI is missing.');
+    console.warn('Cannot prepare model locally because the Ollama CLI is missing.');
     return true;
   }
 
+  if (isLocalHost(ollamaHost)) {
+    await ensureLocalModelFile();
+  }
+
   console.log(`Ensuring Ollama model '${modelName}' is available...`);
-  const ollamaEnv = await getOllamaLaunchEnv();
-  return new Promise((resolve) => {
-    const child = spawn('ollama', ['pull', modelName], {
-      cwd: projectRoot,
-      env: ollamaEnv,
-    });
-    child.stdout.on('data', (data) => process.stdout.write(data.toString()));
-    child.stderr.on('data', (data) => process.stderr.write(data.toString()));
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve(true);
-      } else {
-        console.warn(`ollama pull exited with code ${code}`);
-        resolve(false);
-      }
-    });
-    child.on('error', (error) => {
-      console.warn(`Failed to pull model '${modelName}': ${error.message}`);
-      resolve(false);
-    });
-  });
+  if (!isLocalHost(ollamaHost)) {
+    console.log(`Remote host detected; assuming model '${modelName}' is managed remotely.`);
+    return true;
+  }
+
+  return ensureModelCreated();
 }
 
 async function verifyModelLoaded() {
@@ -312,8 +441,10 @@ async function verifyChat() {
 
 (async () => {
   try {
+    console.log(`Preparing Ollama for ${describeMode()}...`);
     ensureEnvDefaults();
     ensureLogDirectory();
+    await reportGpuStatus('Hardware probe');
     const reachability = await isOllamaReachable();
 
     if (!reachability) {

@@ -38,9 +38,9 @@ function ensureEnvFile() {
 
 dotenv.config({ path: envPath });
 
-async function runScript(label, scriptPath) {
+async function runScript(label, scriptPath, args = []) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath], {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd: projectRoot,
       env: { ...process.env },
     });
@@ -89,7 +89,7 @@ function startServer() {
 async function main() {
   try {
     ensureEnvFile();
-    await runScript('prepare-ollama', path.join(projectRoot, 'scripts', 'prepare-ollama.js'));
+    await runScript('prepare-ollama', path.join(projectRoot, 'scripts', 'prepare-ollama.js'), ['--startup']);
     startServer();
   } catch (error) {
     writeLog(`Startup failed: ${error.message}`);
