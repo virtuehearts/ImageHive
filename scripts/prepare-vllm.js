@@ -47,6 +47,42 @@ async function isVllmReachable() {
   }
 }
 
+async function verifyModelLoaded() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const res = await fetch(`${vllmHost}/v1/models`, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
+    }
+
+    const payload = await res.json();
+    const models = payload?.data || [];
+    const matches = models.filter((entry) => {
+      const candidates = [entry?.id, entry?.root].filter(Boolean);
+      return candidates.some((value) => value === modelName || value?.endsWith(`/${modelName}`));
+    });
+
+    if (!matches.length) {
+      const available = models.map((entry) => entry?.id).filter(Boolean).join(', ') || 'none reported';
+      throw new Error(`Model '${modelName}' not reported by vLLM. Available models: ${available}`);
+    }
+
+    const detected = matches[0]?.id || modelName;
+    console.log(`vLLM model ready: ${detected}`);
+    return true;
+  } catch (error) {
+    console.warn(`vLLM model probe failed: ${error.message}`);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function verifyChat() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
@@ -101,7 +137,8 @@ async function verifyChat() {
     }
 
     if (online) {
-      const chatReady = await verifyChat();
+      const modelReady = await verifyModelLoaded();
+      const chatReady = modelReady ? await verifyChat() : false;
       if (!chatReady && !allowOffline) {
         process.exitCode = 1;
       }
