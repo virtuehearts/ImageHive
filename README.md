@@ -28,20 +28,7 @@ We are actively seeking funding and collaborators to add more image providers an
 2. **Configure environment (only Fal.ai if you want)**
    - The only value you need to add manually is `FAL_API_KEY` (for optional Fal.ai renders). Host, model, and data directory are prefilled and auto-created at runtime.
    - If your vLLM server runs on a different port or machine, update `VLLM_HOST` and `VLLM_MODEL` in `.env`.
-3. **Check GPU readiness (optional)**
-   ```bash
-   npm run check:gpu
-   ```
-   The script reports whether `nvidia-smi` detects a GPU. vLLM will use the GPU when available and fall back to CPU otherwise.
-4. **Start the local VLM backend (vLLM OpenAI server)**
-   - Install vLLM (example for Python users):
-     ```bash
-     pip install vllm
-     python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-VL-3B-Instruct --host 0.0.0.0 --port 8000 --trust-remote-code
-     ```
-   - If you already have weights downloaded locally, point vLLM at the checkpoint path with `--model /path/to/Qwen2.5-VL-3B-Instruct`.
-   - For remote hosts or non-default ports, update `VLLM_HOST` in `.env`.
-5. **Run ImageHive**
+3. **Run ImageHive**
    - **Single command (Linux/macOS Bash):**
      ```bash
      ./ImageHive start
@@ -50,7 +37,7 @@ We are actively seeking funding and collaborators to add more image providers an
      ```bash
      npm run start:managed
      ```
-     Both options invoke the Node-based startup helper (`scripts/startup.js`) which logs to `logs/server.log`, verifies vLLM connectivity, and starts the server with error reporting. It works the same in GitHub Codespaces or PowerShell.
+     Both options invoke the Node-based startup helper (`scripts/startup.js`) which logs to `logs/server.log`, checks GPU availability, ensures vLLM is running, and starts the server with error reporting. It works the same in GitHub Codespaces or PowerShell.
 
 Open your browser at `http://localhost:3000` to chat, manage settings (including Fal.ai key), and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
 
