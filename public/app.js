@@ -22,8 +22,8 @@ const openSettings = document.getElementById('open-settings');
 const closeSettings = document.getElementById('close-settings');
 const settingsForm = document.getElementById('settings-form');
 const falKey = document.getElementById('fal-key');
-const ollamaHost = document.getElementById('ollama-host');
-const ollamaModel = document.getElementById('ollama-model');
+const vllmHost = document.getElementById('vllm-host');
+const vllmModel = document.getElementById('vllm-model');
 const renderDetails = document.getElementById('render-details');
 const toggleRenderDetails = document.getElementById('toggle-render-details');
 const summaryAspect = document.getElementById('summary-aspect');
@@ -338,8 +338,8 @@ settingsForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const payload = {
     falApiKey: falKey.value,
-    ollamaHost: ollamaHost.value || undefined,
-    ollamaModel: ollamaModel.value || undefined,
+    vllmHost: vllmHost.value || undefined,
+    vllmModel: vllmModel.value || undefined,
   };
   await fetch('/api/settings', {
     method: 'POST',
@@ -354,8 +354,8 @@ async function hydrateSettings() {
   const res = await fetch('/api/settings');
   const data = await res.json();
   if (data.falApiKey === 'stored') falKey.placeholder = '•••• saved locally';
-  if (data.ollamaHost) ollamaHost.value = data.ollamaHost;
-  if (data.ollamaModel) ollamaModel.value = data.ollamaModel;
+  if (data.vllmHost) vllmHost.value = data.vllmHost;
+  if (data.vllmModel) vllmModel.value = data.vllmModel;
 }
 
 function startNewChat() {

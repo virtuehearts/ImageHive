@@ -9,7 +9,7 @@ const projectRoot = path.join(__dirname, '..');
 async function runPrepare() {
   return new Promise((resolve, reject) => {
     const outputChunks = [];
-    const child = spawn(process.execPath, ['scripts/prepare-ollama.js'], {
+    const child = spawn(process.execPath, ['scripts/prepare-vllm.js'], {
       cwd: projectRoot,
       env: {
         ...process.env,
@@ -22,11 +22,11 @@ async function runPrepare() {
     child.on('close', (code) => {
       const output = outputChunks.join('');
       if (code !== 0) {
-        reject(new Error(`prepare-ollama exited with ${code}:\n${output}`));
+        reject(new Error(`prepare-vllm exited with ${code}:\n${output}`));
         return;
       }
-      if (!/Ollama responded to startup probe/i.test(output)) {
-        reject(new Error(`Did not see Ollama probe response. Output was:\n${output}`));
+      if (!/vLLM responded to startup probe/i.test(output)) {
+        reject(new Error(`Did not see vLLM probe response. Output was:\n${output}`));
         return;
       }
       resolve(output);
@@ -42,7 +42,7 @@ async function main() {
   console.log(
     output
       .split('\n')
-      .filter((line) => /Ollama responded to startup probe/.test(line))[0],
+      .filter((line) => /vLLM responded to startup probe/.test(line))[0],
   );
 }
 

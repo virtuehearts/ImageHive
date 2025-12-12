@@ -89,7 +89,7 @@ function startServer() {
 async function main() {
   try {
     ensureEnvFile();
-    await runScript('prepare-ollama', path.join(projectRoot, 'scripts', 'prepare-ollama.js'));
+    await runScript('prepare-vllm', path.join(projectRoot, 'scripts', 'prepare-vllm.js'));
     startServer();
   } catch (error) {
     writeLog(`Startup failed: ${error.message}`);

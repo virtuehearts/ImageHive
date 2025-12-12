@@ -1,4 +1,4 @@
-import { getGpuStatus } from '../src/ollamaClient.js';
+import { getGpuStatus } from '../src/vllmClient.js';
 
 (async () => {
   const gpu = await getGpuStatus();

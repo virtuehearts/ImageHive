@@ -13,7 +13,10 @@ export async function getGpuStatus() {
   const gpuInfo = { available: false, method: 'nvidia-smi', devices: [] };
   try {
     const { stdout } = await execAsync('nvidia-smi --query-gpu=name --format=csv,noheader');
-    const lines = stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+    const lines = stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
     gpuInfo.devices = lines;
     gpuInfo.available = lines.length > 0;
   } catch (error) {
@@ -24,37 +27,34 @@ export async function getGpuStatus() {
   return gpuInfo;
 }
 
-export async function chatWithQwen(messages) {
+export async function chatWithVllm(messages) {
   const settings = loadSettings();
   const gpu = await getGpuStatus();
   const useGpu = gpu.available;
   const promptPreamble = { role: 'system', content: buildSystemPrompt() };
   const body = {
-    model: settings.ollamaModel,
+    model: settings.vllmModel,
     messages: [promptPreamble, ...messages],
     stream: false,
-    options: {
-      num_gpu: useGpu ? 1 : 0,
-      temperature: 0.4,
-    },
+    temperature: 0.4,
   };
 
   try {
-    const response = await fetch(`${settings.ollamaHost}/api/chat`, {
+    const response = await fetch(`${settings.vllmHost}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Ollama error ${response.status}: ${text}`);
+      throw new Error(`vLLM error ${response.status}: ${text}`);
     }
     const data = await response.json();
-    const content = data.message?.content || 'No content returned from Ollama.';
+    const content = data.choices?.[0]?.message?.content || 'No content returned from vLLM.';
     return { content, fromGpu: useGpu };
   } catch (error) {
     return {
-      content: `Local Qwen is unavailable. Check that Ollama is running and the model is pulled. (${error.message})`,
+      content: `Local Qwen is unavailable. Check that vLLM is running and the model is served. (${error.message})`,
       fromGpu: false,
       offline: true,
     };
