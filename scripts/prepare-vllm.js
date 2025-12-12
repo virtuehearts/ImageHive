@@ -3,11 +3,19 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import { spawn } from 'child_process';
+import util from 'util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 const envPath = path.join(projectRoot, '.env');
+const vllmPidFile = path.join(projectRoot, '.vllm.pid');
+const logDir = path.join(projectRoot, 'logs');
+const vllmLogFile = path.join(logDir, 'vllm.log');
+
+const execAsync = util.promisify(exec);
 
 dotenv.config({ path: envPath });
 
@@ -50,6 +58,35 @@ function ensureModelDirectories() {
   fs.mkdirSync(modelsDir, { recursive: true });
 }
 
+function formatBytesPerSecond(bytesPerSecond) {
+  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '0 B/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  let value = bytesPerSecond;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return 'ETA --:--';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `ETA ${minutes}m ${remainingSeconds}s`;
+}
+
+function formatProgressBar(percent, width = 24) {
+  const filled = Math.round((percent / 100) * width);
+  const bar = `${'='.repeat(Math.max(0, filled - 1))}${filled > 0 ? '>' : ''}${' '.repeat(
+    Math.max(0, width - filled),
+  )}`;
+  return `[${bar}]`;
+}
+
 async function downloadWithProgress(url, destination) {
   const res = await fetch(url);
   if (!res.ok) {
@@ -58,18 +95,30 @@ async function downloadWithProgress(url, destination) {
 
   const totalBytes = Number(res.headers.get('content-length')) || 0;
   let downloaded = 0;
+  const startedAt = Date.now();
 
   await new Promise((resolve, reject) => {
     const fileStream = fs.createWriteStream(destination);
 
     res.body.on('data', (chunk) => {
       downloaded += chunk.length;
+      const elapsedSeconds = (Date.now() - startedAt) / 1000;
+      const speed = downloaded / Math.max(elapsedSeconds, 0.001);
+      const speedText = formatBytesPerSecond(speed);
+
       if (totalBytes > 0) {
-        const percent = ((downloaded / totalBytes) * 100).toFixed(1);
-        process.stdout.write(`\rDownloading model... ${percent}%`);
+        const percent = (downloaded / totalBytes) * 100;
+        const etaSeconds = (totalBytes - downloaded) / Math.max(speed, 1);
+        const bar = formatProgressBar(percent);
+        const percentText = percent.toFixed(1).padStart(5, ' ');
+        process.stdout.write(
+          `\rDownloading model... ${bar} ${percentText}% | ${speedText} | ${formatDuration(
+            etaSeconds,
+          )}`,
+        );
       } else {
         const mb = (downloaded / 1024 / 1024).toFixed(1);
-        process.stdout.write(`\rDownloading model... ${mb} MB`);
+        process.stdout.write(`\rDownloading model... ${mb} MB | ${speedText}`);
       }
     });
 
@@ -113,6 +162,38 @@ async function ensureModelDownload() {
   return modelPath;
 }
 
+async function detectGpu() {
+  try {
+    const { stdout } = await execAsync('nvidia-smi --query-gpu=name --format=csv,noheader');
+    const devices = stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (devices.length) {
+      console.log(`GPU detected: ${devices.join(', ')}`);
+      return { available: true, devices };
+    }
+  } catch (error) {
+    console.log(`GPU check failed (${error.message}). Falling back to CPU mode.`);
+  }
+  console.log('CPU mode enabled (no compatible GPU detected).');
+  return { available: false, devices: [] };
+}
+
+function ensureLogDirectory() {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+function isLocalHost(url) {
+  try {
+    const parsed = new URL(url);
+    return ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+  } catch (error) {
+    console.warn(`Invalid VLLM_HOST '${url}': ${error.message}`);
+    return false;
+  }
+}
+
 async function isVllmReachable() {
   try {
     const controller = new AbortController();
@@ -123,6 +204,99 @@ async function isVllmReachable() {
   } catch {
     return false;
   }
+}
+
+async function waitForVllmReady(timeoutMs = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const ok = await isVllmReachable();
+    if (ok) return true;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return false;
+}
+
+function readExistingVllmPid() {
+  if (!fs.existsSync(vllmPidFile)) return null;
+  const pidText = fs.readFileSync(vllmPidFile, 'utf-8').trim();
+  const pid = Number.parseInt(pidText, 10);
+  if (Number.isNaN(pid)) return null;
+  try {
+    process.kill(pid, 0);
+    return pid;
+  } catch {
+    fs.rmSync(vllmPidFile, { force: true });
+    return null;
+  }
+}
+
+function writeVllmPid(pid) {
+  fs.writeFileSync(vllmPidFile, String(pid));
+}
+
+async function startVllmServer(gpuInfo) {
+  if (!isLocalHost(vllmHost)) {
+    console.warn(`Skipping auto-start because VLLM_HOST is remote (${vllmHost}).`);
+    return false;
+  }
+
+  const existingPid = readExistingVllmPid();
+  if (existingPid) {
+    console.log(`vLLM already appears to be running (PID ${existingPid}).`);
+    return true;
+  }
+
+  ensureLogDirectory();
+  const parsedHost = new URL(vllmHost || fallbackHost);
+  const args = [
+    '-m',
+    'vllm.entrypoints.openai.api_server',
+    '--host',
+    parsedHost.hostname,
+    '--port',
+    parsedHost.port || '8000',
+    '--model',
+    modelPath,
+    '--served-model-name',
+    modelName,
+  ];
+
+  if (gpuInfo.available) {
+    const tpSize = Math.max(1, gpuInfo.devices.length);
+    args.push('--tensor-parallel-size', String(tpSize));
+  } else {
+    args.push('--device', 'cpu');
+  }
+
+  console.log('Starting local vLLM server...');
+  const outFd = fs.openSync(vllmLogFile, 'a');
+  let child;
+  try {
+    child = spawn('python3', args, {
+      cwd: projectRoot,
+      stdio: ['ignore', outFd, outFd],
+      detached: true,
+    });
+  } catch (error) {
+    console.warn(`Failed to launch vLLM process: ${error.message}`);
+    return false;
+  }
+
+  child.on('error', (error) => {
+    console.warn(`vLLM process error: ${error.message}`);
+  });
+  child.unref();
+  writeVllmPid(child.pid);
+  console.log(`vLLM launch command: python3 ${args.join(' ')}`);
+  console.log(`vLLM logs: ${vllmLogFile}`);
+
+  const ready = await waitForVllmReady(45000);
+  if (!ready) {
+    console.warn('Timed out waiting for vLLM to become reachable. Check vLLM logs.');
+    return false;
+  }
+
+  return true;
 }
 
 async function verifyModelLoaded() {
@@ -208,11 +382,19 @@ async function verifyChat() {
 (async () => {
   try {
     ensureEnvDefaults();
+    ensureLogDirectory();
     await ensureModelDownload();
-    const online = await isVllmReachable();
+    const gpuInfo = await detectGpu();
+    let online = await isVllmReachable();
+
     if (!online) {
-      console.warn(`vLLM host ${vllmHost} is not reachable. Ensure the server is running with model '${modelName}'.`);
-      if (!allowOffline) {
+      console.warn(
+        `vLLM host ${vllmHost} is not reachable. Attempting to launch local server with model '${modelName}'.`,
+      );
+      const started = await startVllmServer(gpuInfo);
+      online = started ? await isVllmReachable() : false;
+      if (!online && !allowOffline) {
+        console.warn('vLLM is still offline after attempting to start it.');
         process.exitCode = 1;
         return;
       }
