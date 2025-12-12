@@ -8,6 +8,50 @@ const execAsync = util.promisify(exec);
 
 let cachedGpu = null;
 
+export async function getOllamaStatus() {
+  const settings = loadSettings();
+  const status = {
+    host: settings.ollamaHost,
+    model: settings.ollamaModel,
+    reachable: false,
+    modelReady: false,
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const res = await fetch(`${settings.ollamaHost}/v1/models`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const text = await res.text();
+      status.error = `HTTP ${res.status} ${res.statusText}: ${text}`;
+      return status;
+    }
+
+    const payload = await res.json();
+    const models = payload?.data || [];
+    const matches = models.filter((entry) => {
+      const candidates = [entry?.id, entry?.root].filter(Boolean);
+      return candidates.some((value) => value === status.model || value?.endsWith(`/${status.model}`));
+    });
+
+    status.reachable = true;
+    status.modelReady = matches.length > 0;
+    if (!status.modelReady) {
+      status.error = `Model '${status.model}' not reported by Ollama.`;
+    }
+  } catch (error) {
+    clearTimeout(timer);
+    status.error = error.message;
+  }
+
+  return status;
+}
+
 export async function getGpuStatus() {
   if (cachedGpu) return cachedGpu;
   const gpuInfo = { available: false, method: 'nvidia-smi', devices: [] };

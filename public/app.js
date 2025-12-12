@@ -35,6 +35,9 @@ const renderConfirmation = document.getElementById('render-confirmation');
 const galleryModal = document.getElementById('gallery-modal');
 const openGallery = document.getElementById('open-gallery');
 const closeGallery = document.getElementById('close-gallery');
+const startupOverlay = document.getElementById('startup-overlay');
+const startupMessage = document.getElementById('startup-message');
+const sendButton = chatForm.querySelector('button[type="submit"]');
 
 const SESSION_KEY = 'imagehive-sessions-v1';
 let sessions = [];
@@ -42,6 +45,34 @@ let activeSessionId = null;
 
 function formatContent(content) {
   return (content ?? '').toString().replace(/\n/g, '<br/>');
+}
+
+function setUiLocked(locked) {
+  [
+    chatMessage,
+    saveJson,
+    openRender,
+    clearChat,
+    newChat,
+    openGallery,
+    openSettings,
+    saveGallery,
+    renderFal,
+    confirmRender,
+    editRender,
+    toggleRenderDetails,
+    falAspectRatio,
+    falResolution,
+    galleryJson,
+    galleryImage,
+    sendButton,
+  ].forEach((el) => {
+    if (el) el.disabled = locked;
+  });
+
+  document.querySelectorAll('.suggestion').forEach((btn) => {
+    btn.disabled = locked;
+  });
 }
 
 function loadSessions() {
@@ -148,6 +179,41 @@ async function fetchHealth() {
     gpuStatus.textContent = data.gpu?.available ? `GPU ready (${data.gpu.devices?.join(', ') || 'detected'})` : 'CPU fallback';
   } catch (error) {
     gpuStatus.textContent = 'Health check failed';
+  }
+}
+
+function describeStartupStatus(ollama) {
+  if (!ollama) return 'Waiting for server to answer…';
+  if (!ollama.reachable) return 'Starting Ollama locally…';
+  if (!ollama.modelReady) return 'Downloading and loading the Qwen model…';
+  return 'Local model is ready. Loading ImageHive.';
+}
+
+async function waitForStartupReady() {
+  setUiLocked(true);
+  startupOverlay.classList.remove('hidden');
+
+  while (true) {
+    try {
+      const res = await fetch('/api/health');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const { ollama } = data || {};
+      startupMessage.textContent = describeStartupStatus(ollama);
+
+      if (ollama?.reachable && ollama?.modelReady) {
+        startupOverlay.classList.add('hidden');
+        setUiLocked(false);
+        fetchHealth();
+        bootstrap();
+        return;
+      }
+    } catch (error) {
+      startupMessage.textContent = `Waiting for startup: ${error.message}`;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
 }
 
@@ -422,10 +488,9 @@ function bootstrap() {
   loadSessions();
   renderHistory();
   renderConversation();
-  fetchHealth();
   hydrateSettings();
   updateRenderSummary();
   loadGallery();
 }
 
-bootstrap();
+waitForStartupReady();
