@@ -21,6 +21,7 @@ const ollamaHost = process.env.OLLAMA_HOST || fallbackHost;
 const isLocalHost = /127\.0\.0\.1|localhost/.test(ollamaHost);
 
 const env = { ...process.env, OLLAMA_HOST: ollamaHost };
+const skipOllamaInstall = process.env.SKIP_OLLAMA_INSTALL === '1';
 const modelfilePath = path.join(projectRoot, 'modelfiles', `${modelTag}.Modelfile`);
 const dataDir = process.env.DATA_DIR || path.join(projectRoot, 'data');
 const modelDir = path.join(dataDir, 'models');
@@ -42,7 +43,36 @@ function commandExists(cmd) {
 
 let cachedOllamaBinary = null;
 
-function findOllamaBinary() {
+async function downloadOllamaBinary() {
+  if (skipOllamaInstall) return null;
+  if (process.platform !== 'linux') return null;
+
+  const binDir = path.join(dataDir, 'bin');
+  const destination = path.join(binDir, 'ollama');
+  const downloadUrl = 'https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64';
+
+  fs.mkdirSync(binDir, { recursive: true });
+
+  console.log(`Downloading Ollama CLI from ${downloadUrl} ...`);
+  const res = await fetch(downloadUrl);
+  if (!res.ok || !res.body) {
+    throw new Error(`Failed to download Ollama CLI: ${res.status} ${res.statusText}`);
+  }
+
+  await new Promise((resolve, reject) => {
+    const fileStream = fs.createWriteStream(destination);
+    res.body.pipe(fileStream);
+    res.body.on('error', reject);
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
+  });
+
+  fs.chmodSync(destination, 0o755);
+  console.log(`Ollama CLI downloaded to ${destination}.`);
+  return destination;
+}
+
+async function findOllamaBinary() {
   if (cachedOllamaBinary !== null) return cachedOllamaBinary;
 
   const defaultName = process.platform === 'win32' ? 'ollama.exe' : 'ollama';
@@ -72,6 +102,13 @@ function findOllamaBinary() {
   }
 
   cachedOllamaBinary = candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+  if (cachedOllamaBinary) return cachedOllamaBinary;
+
+  try {
+    cachedOllamaBinary = await downloadOllamaBinary();
+  } catch (error) {
+    console.warn(`Unable to download Ollama CLI automatically: ${error.message}`);
+  }
   return cachedOllamaBinary;
 }
 
@@ -112,8 +149,8 @@ async function isOllamaRunning() {
   }
 }
 
-function startOllamaServe() {
-  const ollamaBinary = findOllamaBinary();
+async function startOllamaServe() {
+  const ollamaBinary = await findOllamaBinary();
   if (!ollamaBinary) {
     console.warn('Ollama is not installed or not on PATH. Skipping automatic start.');
     return false;
@@ -143,7 +180,7 @@ async function ensureOllamaOnline() {
     return false;
   }
 
-  const started = startOllamaServe();
+  const started = await startOllamaServe();
   if (!started) return false;
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -195,8 +232,8 @@ async function verifyOllamaChat() {
   }
 }
 
-function hasModel() {
-  const ollamaBinary = findOllamaBinary();
+async function hasModel() {
+  const ollamaBinary = await findOllamaBinary();
   if (!ollamaBinary) return false;
 
   try {
@@ -207,19 +244,19 @@ function hasModel() {
   }
 }
 
-function ensureModel() {
+async function ensureModel() {
   if (skipModelCreate) {
     console.log('Skipping model creation because SKIP_OLLAMA_MODEL=1.');
     return;
   }
 
-  const ollamaBinary = findOllamaBinary();
+  const ollamaBinary = await findOllamaBinary();
   if (!ollamaBinary) {
     console.warn('Ollama is not installed or not on PATH. Skipping automatic model download.');
     return;
   }
 
-  if (hasModel()) {
+  if (await hasModel()) {
     console.log(`Ollama model '${modelTag}' already available.`);
     return;
   }
@@ -324,7 +361,7 @@ async function ensureHuggingFaceDownload() {
       console.warn('Ollama host is not reachable; model preparation skipped.');
       process.exitCode = 1;
     } else {
-      ensureModel();
+      await ensureModel();
       const chatReady = await verifyOllamaChat();
       if (!chatReady) {
         process.exitCode = 1;
