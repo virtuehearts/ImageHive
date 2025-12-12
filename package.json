@@ -8,7 +8,8 @@
     "start:managed": "node scripts/startup.js",
     "dev": "node scripts/prepare-ollama.js && nodemon src/server.js",
     "check:gpu": "node scripts/check-gpu.js",
-    "screenshot": "node scripts/capture-screenshot.js"
+    "screenshot": "node scripts/capture-screenshot.js",
+    "test:startup": "node scripts/test-startup.js"
   },
   "keywords": [],
   "author": "Darknet.ca Labs",
