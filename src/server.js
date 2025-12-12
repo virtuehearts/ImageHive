@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureDataDir, loadSettings, saveSettings, loadGallery, saveGallery } from './storage.js';
-import { chatWithVllm, getGpuStatus } from './vllmClient.js';
+import { chatWithOllama, getGpuStatus } from './ollamaClient.js';
 import { generateFalImage } from './falClient.js';
 
 dotenv.config();
@@ -35,17 +35,17 @@ app.get('/api/settings', (req, res) => {
   const settings = loadSettings();
   res.json({
     falApiKey: settings.falApiKey ? 'stored' : '',
-    vllmHost: settings.vllmHost,
-    vllmModel: settings.vllmModel,
+    ollamaHost: settings.ollamaHost,
+    ollamaModel: settings.ollamaModel,
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { falApiKey, vllmHost, vllmModel } = req.body || {};
+  const { falApiKey, ollamaHost, ollamaModel } = req.body || {};
   const nextSettings = loadSettings();
   if (falApiKey !== undefined) nextSettings.falApiKey = falApiKey;
-  if (vllmHost) nextSettings.vllmHost = vllmHost;
-  if (vllmModel) nextSettings.vllmModel = vllmModel;
+  if (ollamaHost) nextSettings.ollamaHost = ollamaHost;
+  if (ollamaModel) nextSettings.ollamaModel = ollamaModel;
   saveSettings(nextSettings);
   res.json({ success: true });
 });
@@ -80,7 +80,7 @@ app.post('/api/chat', async (req, res) => {
     return res.status(400).json({ message: 'Messages array is required.' });
   }
   try {
-    const reply = await chatWithVllm(messages);
+    const reply = await chatWithOllama(messages);
     res.json(reply);
   } catch (error) {
     res.status(500).json({ message: error.message });

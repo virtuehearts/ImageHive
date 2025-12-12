@@ -7,9 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
-function startMockVllm(modelName, port = 18000) {
+function startMockOllama(modelName, port = 18000) {
   const host = '127.0.0.1';
   const mockServer = http.createServer((req, res) => {
+    if (req.url === '/api/version') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ version: 'mock' }));
+      return;
+    }
+
     if (req.url === '/v1/models') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -64,16 +70,16 @@ function startMockVllm(modelName, port = 18000) {
   });
 }
 
-async function runPrepare(vllmHost, modelName) {
+async function runPrepare(ollamaHost, modelName) {
   return new Promise((resolve, reject) => {
     const outputChunks = [];
-    const child = spawn(process.execPath, ['scripts/prepare-vllm.js'], {
+    const child = spawn(process.execPath, ['scripts/prepare-ollama.js'], {
       cwd: projectRoot,
       env: {
         ...process.env,
-        VLLM_HOST: vllmHost,
-        VLLM_MODEL: modelName,
-        SKIP_MODEL_DOWNLOAD: '1',
+        OLLAMA_HOST: ollamaHost,
+        OLLAMA_MODEL: modelName,
+        ALLOW_OLLAMA_OFFLINE: '0',
       },
     });
 
@@ -83,15 +89,11 @@ async function runPrepare(vllmHost, modelName) {
     child.on('close', (code) => {
       const output = outputChunks.join('');
       if (code !== 0) {
-        reject(new Error(`prepare-vllm exited with ${code}:\n${output}`));
+        reject(new Error(`prepare-ollama exited with ${code}:\n${output}`));
         return;
       }
-      if (!/vLLM model ready:/i.test(output) || !/vLLM responded to startup probe/i.test(output)) {
-        reject(
-          new Error(
-            `Did not see required vLLM readiness messages. Output was:\n${output}`,
-          ),
-        );
+      if (!/Ollama model ready:/i.test(output) || !/Ollama responded to startup probe/i.test(output)) {
+        reject(new Error(`Did not see required Ollama readiness messages. Output was:\n${output}`));
         return;
       }
       resolve(output);
@@ -100,15 +102,15 @@ async function runPrepare(vllmHost, modelName) {
 }
 
 async function main() {
-  const modelName = 'Qwen2.5-VL-3B-Instruct';
-  const vllmHost = 'http://127.0.0.1:18000';
-  const mockServer = await startMockVllm(modelName, 18000);
+  const modelName = 'qwen2.5-vl-3b-instruct';
+  const ollamaHost = 'http://127.0.0.1:18000';
+  const mockServer = await startMockOllama(modelName, 18000);
 
   try {
-    const output = await runPrepare(vllmHost, modelName);
+    const output = await runPrepare(ollamaHost, modelName);
     const summaryLines = output
       .split('\n')
-      .filter((line) => /vLLM (model ready|responded to startup probe)/.test(line));
+      .filter((line) => /Ollama (model ready|responded to startup probe)/.test(line));
 
     // eslint-disable-next-line no-console
     console.log('Startup test completed successfully. Output snippet:');

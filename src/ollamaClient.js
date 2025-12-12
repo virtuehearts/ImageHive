@@ -27,34 +27,34 @@ export async function getGpuStatus() {
   return gpuInfo;
 }
 
-export async function chatWithVllm(messages) {
+export async function chatWithOllama(messages) {
   const settings = loadSettings();
   const gpu = await getGpuStatus();
   const useGpu = gpu.available;
   const promptPreamble = { role: 'system', content: buildSystemPrompt() };
   const body = {
-    model: settings.vllmModel,
+    model: settings.ollamaModel,
     messages: [promptPreamble, ...messages],
     stream: false,
     temperature: 0.4,
   };
 
   try {
-    const response = await fetch(`${settings.vllmHost}/v1/chat/completions`, {
+    const response = await fetch(`${settings.ollamaHost}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`vLLM error ${response.status}: ${text}`);
+      throw new Error(`Ollama error ${response.status}: ${text}`);
     }
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || 'No content returned from vLLM.';
+    const content = data.choices?.[0]?.message?.content || 'No content returned from Ollama.';
     return { content, fromGpu: useGpu };
   } catch (error) {
     return {
-      content: `Local Qwen is unavailable. Check that vLLM is running and the model is served. (${error.message})`,
+      content: `Local Qwen is unavailable. Check that Ollama is running and the model is pulled. (${error.message})`,
       fromGpu: false,
       offline: true,
     };
