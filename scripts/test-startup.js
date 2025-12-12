@@ -73,6 +73,7 @@ async function runPrepare(vllmHost, modelName) {
         ...process.env,
         VLLM_HOST: vllmHost,
         VLLM_MODEL: modelName,
+        SKIP_MODEL_DOWNLOAD: '1',
       },
     });
 
