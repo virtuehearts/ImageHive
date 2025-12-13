@@ -71,6 +71,21 @@ export async function getGpuStatus() {
   return gpuInfo;
 }
 
+function normalizeMessages(messages = []) {
+  return messages.map((message) => {
+    const normalized = { ...message };
+
+    if (Array.isArray(message.images) && message.images.length > 0) {
+      normalized.images = message.images
+        .map((img) => (typeof img === 'string' ? img : ''))
+        .filter(Boolean)
+        .map((img) => img.replace(/^data:image\/[^;]+;base64,/, ''));
+    }
+
+    return normalized;
+  });
+}
+
 export async function chatWithOllama(messages) {
   const settings = loadSettings();
   const gpu = await getGpuStatus();
@@ -78,7 +93,7 @@ export async function chatWithOllama(messages) {
   const promptPreamble = { role: 'system', content: buildSystemPrompt() };
   const body = {
     model: settings.ollamaModel,
-    messages: [promptPreamble, ...messages],
+    messages: [promptPreamble, ...normalizeMessages(messages)],
     stream: false,
     temperature: 0.4,
   };
@@ -102,5 +117,73 @@ export async function chatWithOllama(messages) {
       fromGpu: false,
       offline: true,
     };
+  }
+}
+
+export async function streamChatWithOllama(messages, onChunk = () => {}) {
+  const settings = loadSettings();
+  const gpu = await getGpuStatus();
+  const useGpu = gpu.available;
+  const promptPreamble = { role: 'system', content: buildSystemPrompt() };
+  const body = {
+    model: settings.ollamaModel,
+    messages: [promptPreamble, ...normalizeMessages(messages)],
+    stream: true,
+    temperature: 0.4,
+  };
+
+  try {
+    const response = await fetch(`${settings.ollamaHost}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok || !response.body) {
+      const text = await response.text();
+      throw new Error(`Ollama error ${response.status}: ${text}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        try {
+          const parsed = JSON.parse(trimmed);
+          const delta = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content;
+          if (delta) onChunk(delta);
+        } catch {
+          // ignore malformed chunks
+        }
+      });
+    }
+
+    if (buffer.trim()) {
+      try {
+        const parsed = JSON.parse(buffer.trim());
+        const delta = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content;
+        if (delta) onChunk(delta);
+      } catch {
+        // ignore trailing parse errors
+      }
+    }
+
+    return { fromGpu: useGpu, offline: false };
+  } catch (error) {
+    onChunk(
+      `Local Qwen is unavailable. Check that Ollama is running and the model is pulled. (${error.message || 'Unknown error'})`,
+    );
+    return { fromGpu: false, offline: true };
   }
 }

@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureDataDir, loadSettings, saveSettings, loadGallery, saveGallery } from './storage.js';
-import { chatWithOllama, getGpuStatus, getOllamaStatus } from './ollamaClient.js';
+import { chatWithOllama, getGpuStatus, getOllamaStatus, streamChatWithOllama } from './ollamaClient.js';
 import { generateFalImage } from './falClient.js';
 
 dotenv.config();
@@ -77,14 +77,45 @@ app.post('/api/gallery', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   const { messages } = req.body || {};
+  const stream = req.query.stream !== 'false';
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ message: 'Messages array is required.' });
   }
+
+  if (!stream) {
+    try {
+      const reply = await chatWithOllama(messages);
+      return res.json(reply);
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const chunks = [];
+
   try {
-    const reply = await chatWithOllama(messages);
-    res.json(reply);
+    const result = await streamChatWithOllama(messages, (delta) => {
+      chunks.push(delta);
+      res.write(`data: ${JSON.stringify({ type: 'token', content: delta })}\n\n`);
+    });
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'done',
+        content: chunks.join(''),
+        fromGpu: result.fromGpu,
+        offline: result.offline,
+      })}\n\n`,
+    );
+    res.end();
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    res.end();
   }
 });
 

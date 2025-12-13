@@ -1,6 +1,12 @@
 const chatLog = document.getElementById('chat-log');
 const chatForm = document.getElementById('chat-form');
 const chatMessage = document.getElementById('chat-message');
+const chatImage = document.getElementById('chat-image');
+const attachImage = document.getElementById('attach-image');
+const imagePreview = document.getElementById('image-preview');
+const imagePreviewImg = document.getElementById('image-preview-img');
+const imagePreviewName = document.getElementById('image-preview-name');
+const removeImage = document.getElementById('remove-image');
 const saveJson = document.getElementById('save-json');
 const gpuStatus = document.getElementById('gpu-status');
 const clearChat = document.getElementById('clear-chat');
@@ -42,9 +48,28 @@ const sendButton = chatForm.querySelector('button[type="submit"]');
 const SESSION_KEY = 'imagehive-sessions-v1';
 let sessions = [];
 let activeSessionId = null;
+let pendingImageDataUrl = '';
+let pendingImageName = '';
 
 function formatContent(content) {
   return (content ?? '').toString().replace(/\n/g, '<br/>');
+}
+
+function buildFootnote(meta) {
+  if (!meta) return '';
+  if (meta.footnote) return meta.footnote;
+  const source = meta.offline ? 'Offline' : 'Ollama';
+  const accel = meta.fromGpu ? 'GPU' : 'CPU';
+  return `${accel} · ${source}`;
+}
+
+function attachFootnote(body, text) {
+  if (!text) return;
+  const footnote = document.createElement('div');
+  footnote.className = 'muted small';
+  footnote.innerHTML = formatContent(text);
+  body.appendChild(document.createElement('br'));
+  body.appendChild(footnote);
 }
 
 function setUiLocked(locked) {
@@ -66,6 +91,9 @@ function setUiLocked(locked) {
     galleryJson,
     galleryImage,
     sendButton,
+    attachImage,
+    removeImage,
+    chatImage,
   ].forEach((el) => {
     if (el) el.disabled = locked;
   });
@@ -140,12 +168,37 @@ function renderHistory() {
   });
 }
 
-function appendMessage(role, content) {
+function appendMessage(role, content, options = {}) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
-  div.innerHTML = `<small>${role === 'user' ? 'You' : 'ImageHive'}</small>${formatContent(content)}`;
+
+  const label = document.createElement('small');
+  label.textContent = role === 'user' ? 'You' : 'ImageHive';
+  const body = document.createElement('div');
+  body.className = 'message-body';
+  body.innerHTML = formatContent(content);
+
+  div.appendChild(label);
+  div.appendChild(body);
+
+  if (options.images?.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'message-images';
+    options.images.forEach((src) => {
+      const img = document.createElement('img');
+      img.src = src.startsWith('data:') ? src : `data:image/*;base64,${src}`;
+      img.alt = 'Attached reference';
+      wrap.appendChild(img);
+    });
+    div.appendChild(wrap);
+  }
+
+  const footnoteText = buildFootnote(options.meta);
+  attachFootnote(body, footnoteText);
+
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
+  return { container: div, body };
 }
 
 function renderConversation() {
@@ -157,7 +210,9 @@ function renderConversation() {
     showIntroMessage();
     return;
   }
-  session.messages.forEach((msg) => appendMessage(msg.role, msg.content));
+  session.messages.forEach((msg) =>
+    appendMessage(msg.role, msg.content, { images: msg.images, meta: msg.meta }),
+  );
 }
 
 function updateSessionTitleFromMessage(message) {
@@ -244,43 +299,151 @@ function showRenderPanel() {
   updateRenderSummary();
 }
 
+function showImagePreview(dataUrl, name) {
+  if (!imagePreview || !imagePreviewImg || !imagePreviewName) return;
+  imagePreviewImg.src = dataUrl;
+  imagePreviewName.textContent = name || 'Attached image';
+  imagePreview.classList.remove('hidden');
+}
+
+function clearPendingImage() {
+  pendingImageDataUrl = '';
+  pendingImageName = '';
+  if (chatImage) chatImage.value = '';
+  if (imagePreview) imagePreview.classList.add('hidden');
+  if (imagePreviewImg) imagePreviewImg.src = '';
+  if (imagePreviewName) imagePreviewName.textContent = '';
+}
+
+function handleImageSelection(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    pendingImageDataUrl = event.target?.result || '';
+    pendingImageName = file.name;
+    showImagePreview(pendingImageDataUrl, pendingImageName);
+  };
+  reader.readAsDataURL(file);
+}
+
+if (attachImage) {
+  attachImage.addEventListener('click', () => chatImage?.click());
+}
+
+if (chatImage) {
+  chatImage.addEventListener('change', (event) => {
+    const file = event.target?.files?.[0];
+    handleImageSelection(file);
+  });
+}
+
+if (removeImage) {
+  removeImage.addEventListener('click', clearPendingImage);
+}
+
 async function sendChat(message) {
   const session = getActiveSession();
   if (!session) return;
-  session.messages.push({ role: 'user', content: message });
-  updateSessionTitleFromMessage(message);
-  appendMessage('user', message);
+  const images = pendingImageDataUrl ? [pendingImageDataUrl] : [];
+  const userText = message || (images.length ? 'Describe this image' : '');
+  const userMessage = { role: 'user', content: userText };
+  if (images.length) userMessage.images = images;
+
+  session.messages.push(userMessage);
+  updateSessionTitleFromMessage(userText);
+  appendMessage('user', userText, { images });
   chatMessage.value = '';
+  clearPendingImage();
+
   const payload = { messages: session.messages };
-  appendMessage('bot', '<em>Thinking...</em>');
-  const spinner = chatLog.lastChild;
+  const assistantMessage = appendMessage('bot', 'On it — sketching your prompt...', {
+    meta: { footnote: 'Streaming response' },
+  });
+  const assistantBody = assistantMessage.body;
+  let fullText = '';
+  const meta = { fromGpu: false, offline: false };
+  let streamError = null;
+
   try {
-    const res = await fetch('/api/chat', {
+    const res = await fetch('/api/chat?stream=true', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    chatLog.removeChild(spinner);
-    session.messages.push({ role: 'assistant', content: data.content });
-    appendMessage('bot', `${data.content} <br/><span class="muted">${data.fromGpu ? 'GPU' : 'CPU'} · ${data.offline ? 'Offline' : 'Ollama'}</span>`);
+
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const processEvent = (event) => {
+      if (!event?.type) return;
+      if (event.type === 'token') {
+        fullText += event.content || '';
+        assistantBody.innerHTML = formatContent(`On it — sketching your prompt...\n${fullText}`);
+      } else if (event.type === 'done') {
+        meta.fromGpu = !!event.fromGpu;
+        meta.offline = !!event.offline;
+        if (!fullText) fullText = event.content || '';
+      } else if (event.type === 'error') {
+        streamError = new Error(event.message || 'Streaming error');
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += value ? decoder.decode(value, { stream: true }) : '';
+
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const raw = buffer.slice(0, boundary).trim();
+        buffer = buffer.slice(boundary + 2);
+        if (raw.startsWith('data:')) {
+          try {
+            processEvent(JSON.parse(raw.replace(/^data:\s*/, '')));
+          } catch (error) {
+            streamError = streamError || error;
+          }
+        }
+        boundary = buffer.indexOf('\n\n');
+      }
+
+      if (done) break;
+    }
+
+    const finalRaw = buffer.trim();
+    if (finalRaw.startsWith('data:')) {
+      try {
+        processEvent(JSON.parse(finalRaw.replace(/^data:\s*/, '')));
+      } catch (error) {
+        streamError = streamError || error;
+      }
+    }
+
+    if (streamError) throw streamError;
+
+    assistantBody.innerHTML = formatContent(fullText || 'No content returned from ImageHive yet.');
+    attachFootnote(assistantBody, buildFootnote(meta));
+
+    session.messages.push({ role: 'assistant', content: fullText, meta });
     saveSessions();
     renderHistory();
-    if (saveJson.checked) {
+
+    if (saveJson.checked && fullText) {
       galleryTitle.value = session.title || `Chat ${new Date().toLocaleString()}`;
-      galleryJson.value = data.content;
+      galleryJson.value = fullText;
       saveJson.checked = false;
     }
   } catch (error) {
-    chatLog.removeChild(spinner);
-    appendMessage('bot', `Error contacting server: ${error.message}`);
+    assistantBody.innerHTML = formatContent(`Error contacting server: ${error.message}`);
   }
 }
 
 chatForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const msg = chatMessage.value.trim();
-  if (!msg) return;
+  if (!msg && !pendingImageDataUrl) return;
   sendChat(msg);
 });
 
@@ -428,6 +591,7 @@ function startNewChat() {
   const id = createSession();
   setActiveSession(id);
   renderConversation();
+  clearPendingImage();
 }
 
 newChat.addEventListener('click', startNewChat);
