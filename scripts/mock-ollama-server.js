@@ -10,7 +10,7 @@ function buildJson(res, statusCode, payload) {
   res.end(body);
 }
 
-export function startMockOllama(modelTag = 'qwen2.5-vl-3b-instruct-q8_0') {
+export function startMockOllama(modelTag = 'qwen2.5-vl-abliterated:3b') {
   return new Promise((resolve) => {
     const server = http.createServer(async (req, res) => {
       const parsed = url.parse(req.url, true);

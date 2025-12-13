@@ -1,7 +1,7 @@
-# Lightweight Qwen2.5-VL-3B-Instruct build for Ollama
-# Pulled from Unsloth's GGUF release (Q8_0 quantization)
+# Lightweight Qwen2.5-VL-3B-Instruct-abliterated build for Ollama
+# Pulled from HuiHui AI's GGUF release (Q8_0 quantization)
 # The GGUF file is downloaded during install to this local path.
-FROM ./Qwen2.5-VL-3B-Instruct-Q8_0.gguf
+FROM ./Qwen2.5-VL-3B-Instruct-abliterated.Q8_0.gguf
 
 # Chat template adapted from Qwen chat formatting
 TEMPLATE """{{- if .System }}<|im_start|>system

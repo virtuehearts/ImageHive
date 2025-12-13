@@ -22,7 +22,7 @@ APP_HOST=${APP_HOST:-0.0.0.0}
 APP_OLLAMA_HOST=${OLLAMA_HOST:-$(read_env_var OLLAMA_HOST)}
 APP_OLLAMA_HOST=${APP_OLLAMA_HOST:-http://127.0.0.1:11434}
 APP_OLLAMA_MODEL=${OLLAMA_MODEL:-$(read_env_var OLLAMA_MODEL)}
-APP_OLLAMA_MODEL=${APP_OLLAMA_MODEL:-qwen2.5-vl-3b-instruct}
+APP_OLLAMA_MODEL=${APP_OLLAMA_MODEL:-qwen2.5-vl-abliterated:3b}
 
 usage() {
   cat <<USAGE
@@ -97,7 +97,7 @@ install_cmd() {
   ensure_env
   echo "Installing npm dependencies..."
   $PACKAGE_MANAGER install
-  echo "Ensuring Ollama and the Qwen2.5-VL-3B-Instruct model are installed..."
+  echo "Ensuring Ollama and the Qwen2.5-VL-abliterated:3b model are installed..."
   node scripts/prepare-ollama.js --install
   echo "Defaults are prefilled for Ollama host/model/data dir; only set FAL_API_KEY if you want Fal.ai renders."
   echo "Optional: run '$PACKAGE_MANAGER run check:gpu' to verify GPU visibility."

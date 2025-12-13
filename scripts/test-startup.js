@@ -102,7 +102,7 @@ async function runPrepare(ollamaHost, modelName) {
 }
 
 async function main() {
-  const modelName = 'qwen2.5-vl-3b-instruct';
+  const modelName = 'qwen2.5-vl-abliterated:3b';
   const ollamaHost = 'http://127.0.0.1:18000';
   const mockServer = await startMockOllama(modelName, 18000);
 

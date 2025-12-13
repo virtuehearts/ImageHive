@@ -24,7 +24,8 @@ function defaultSettings() {
   return {
     falApiKey: process.env.FAL_API_KEY || '',
     ollamaHost: process.env.OLLAMA_HOST || process.env.VLLM_HOST || 'http://127.0.0.1:11434',
-    ollamaModel: process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-3b-instruct',
+    ollamaModel:
+      process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-abliterated:3b',
   };
 }
 
