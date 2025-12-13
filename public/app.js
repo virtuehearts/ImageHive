@@ -46,6 +46,13 @@ const startupMessage = document.getElementById('startup-message');
 const sendButton = chatForm.querySelector('button[type="submit"]');
 
 const SESSION_KEY = 'imagehive-sessions-v1';
+const IMAGE_ANALYSIS_PROMPT = [
+  'Analyze the attached image and respond only with JSON using these keys:',
+  'subject.description, subject.physique, subject.expression, clothing.type, clothing.style, clothing.color,',
+  'pose.stance, pose.gesture, pose.orientation, environment.location, environment.background, environment.lighting,',
+  'style.type, style.aesthetic.',
+  'Use empty strings for unknown fields and do not add any extra text.',
+].join(' ');
 let sessions = [];
 let activeSessionId = null;
 let pendingImageDataUrl = '';
@@ -345,7 +352,7 @@ async function sendChat(message) {
   const session = getActiveSession();
   if (!session) return;
   const images = pendingImageDataUrl ? [pendingImageDataUrl] : [];
-  const userText = message || (images.length ? 'Describe this image' : '');
+  const userText = message || (images.length ? IMAGE_ANALYSIS_PROMPT : '');
   const userMessage = { role: 'user', content: userText };
   if (images.length) userMessage.images = images;
 
