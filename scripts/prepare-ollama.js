@@ -14,17 +14,18 @@ const ollamaPidFile = path.join(projectRoot, '.ollama.pid');
 const logDir = path.join(projectRoot, 'logs');
 const ollamaLogFile = path.join(logDir, 'ollama.log');
 const modelDir = path.join(projectRoot, 'modelfiles');
-const ggufFile = path.join(modelDir, 'Qwen2.5-VL-3B-Instruct-Q8_0.gguf');
+const ggufFile = path.join(modelDir, 'Qwen2.5-VL-3B-Instruct-abliterated.Q8_0.gguf');
 const modelDownloadUrl =
-  'https://huggingface.co/unsloth/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q8_0.gguf?download=true';
-const modelfilePath = path.join(modelDir, 'qwen2.5-vl-3b-instruct-q8_0.Modelfile');
+  'https://huggingface.co/mradermacher/Qwen2.5-VL-3B-Instruct-abliterated-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-abliterated.Q8_0.gguf?download=true';
+const modelfilePath = path.join(modelDir, 'qwen2.5-vl-abliterated-3b-q8_0.Modelfile');
 
 const execAsync = util.promisify(exec);
 
 dotenv.config({ path: envPath });
 
 const defaultHost = 'http://127.0.0.1:11434';
-const modelName = process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-3b-instruct';
+const modelName =
+  process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-abliterated:3b';
 const ollamaHost = process.env.OLLAMA_HOST || process.env.VLLM_HOST || defaultHost;
 const allowOffline = process.env.ALLOW_OLLAMA_OFFLINE === '1' || process.env.ALLOW_VLLM_OFFLINE === '1';
 const isInstallMode = process.argv.includes('--install');
@@ -368,6 +369,12 @@ async function ensureModelAvailable() {
   return ensureModelCreated();
 }
 
+function normalizeModel(value) {
+  if (!value) return null;
+  const [base, tag] = value.split(':');
+  return { base, tag, full: value };
+}
+
 async function verifyModelLoaded() {
   try {
     const res = await fetch(`${ollamaHost}/v1/models`);
@@ -377,9 +384,16 @@ async function verifyModelLoaded() {
     }
     const payload = await res.json();
     const models = payload?.data || [];
+    const requested = normalizeModel(modelName);
     const matches = models.filter((entry) => {
-      const candidates = [entry?.id, entry?.root].filter(Boolean);
-      return candidates.some((value) => value === modelName || value?.endsWith(`/${modelName}`));
+      const candidates = [entry?.id, entry?.root].filter(Boolean).map(normalizeModel);
+      return candidates.some((candidate) => {
+        if (!candidate) return false;
+        if (candidate.full === modelName || candidate.full?.endsWith(`/${modelName}`)) return true;
+        if (candidate.base && requested?.base && candidate.base === requested.base) return true;
+        if (requested?.base && candidate.full?.startsWith(`${requested.base}:`)) return true;
+        return false;
+      });
     });
 
     if (!matches.length) {

@@ -1,8 +1,8 @@
 # ImageHive 🐝
 
-_Local-first visual prompt assistant powered by Qwen2.5-VL-3B-Instruct via Ollama_
+_Local-first visual prompt assistant powered by Qwen2.5-VL-3B-Instruct-abliterated (3B) via Ollama_
 
-ImageHive is a friendly, local AI assistant for image creation. Think of it as the **OpenRouter for image models**: one place to connect all of your image providers and APIs with consistent prompting. The framework runs the Qwen2.5-VL-3B-Instruct model through an Ollama OpenAI-compatible server that works on either CPU or GPU, so you always have a capable local brain for understanding images and crafting prompts (including JSON payloads). Remote render farms are used only when you explicitly confirm the cost.
+ImageHive is a friendly, local AI assistant for image creation. Think of it as the **OpenRouter for image models**: one place to connect all of your image providers and APIs with consistent prompting. The framework runs the Qwen2.5-VL-3B-Instruct-abliterated (3B) model through an Ollama OpenAI-compatible server that works on either CPU or GPU, so you always have a capable local brain for understanding images and crafting prompts (including JSON payloads). Remote render farms are used only when you explicitly confirm the cost.
 
 We are actively seeking funding and collaborators to add more image providers and API integrations—if you want to see your favorite model supported, please reach out.
 
@@ -10,7 +10,7 @@ We are actively seeking funding and collaborators to add more image providers an
 
 ## ✨ Key Features
 
-- **Local-first, low-requirement SLM** — Runs the low-memory **Qwen2.5-VL-3B-Instruct** build through Ollama (CPU or GPU) with no prompts sent to external LLMs by default.
+- **Local-first, low-requirement SLM** — Runs the low-memory **Qwen2.5-VL-3B-Instruct-abliterated (3B)** build through Ollama (CPU or GPU) with no prompts sent to external LLMs by default.
 - **GPU-aware startup** — A helper script checks for GPU support before choosing a CPU fallback, and server requests hint to Ollama how many GPUs to use.
 - **Visual understanding** — Analyze images for subject, style, composition, and turn them into prompt-ready descriptions.
 - **Prompt crafting & refinement** — Chat to iteratively improve prompts, including JSON snippets compatible with prompt tools.
@@ -24,7 +24,7 @@ We are actively seeking funding and collaborators to add more image providers an
    ```bash
    ./ImageHive install
    ```
-   The helper script copies `.env.example` into `.env` (if missing), installs npm packages, installs Ollama if needed, downloads the local **Qwen2.5-VL-3B-Instruct Q8_0 GGUF** with a live progress bar, and builds the Ollama model (GPU-enabled when available). Defaults target local Ollama host (`127.0.0.1:11434`), the Qwen2.5-VL-3B-Instruct model name, and `./data` for storage.
+   The helper script copies `.env.example` into `.env` (if missing), installs npm packages, installs Ollama if needed, downloads the local **Qwen2.5-VL-3B-Instruct-abliterated Q8_0 GGUF** with a live progress bar, and builds the Ollama model (GPU-enabled when available). Defaults target local Ollama host (`127.0.0.1:11434`), the Qwen2.5-VL-abliterated:3b model name, and `./data` for storage.
 2. **Configure environment (only Fal.ai if you want)**
    - The only value you need to add manually is `FAL_API_KEY` (for optional Fal.ai renders). Host, model, and data directory are prefilled and auto-created at runtime.
    - If your Ollama server runs on a different port or machine, update `OLLAMA_HOST` and `OLLAMA_MODEL` in `.env`.
@@ -37,7 +37,7 @@ We are actively seeking funding and collaborators to add more image providers an
      ```bash
      npm run start:managed
      ```
-     Both options invoke the Node-based startup helper (`scripts/startup.js`) which logs to `logs/server.log`, checks GPU availability, ensures Ollama is running (and pulls Qwen2.5-VL-3B-Instruct), and starts the server with error reporting. It works the same in GitHub Codespaces or PowerShell.
+     Both options invoke the Node-based startup helper (`scripts/startup.js`) which logs to `logs/server.log`, checks GPU availability, ensures Ollama is running (and pulls Qwen2.5-VL-abliterated:3b), and starts the server with error reporting. It works the same in GitHub Codespaces or PowerShell.
 
 Open your browser at `http://localhost:3000` to chat, manage settings (including Fal.ai key), and save JSON prompts to the gallery. Use `./ImageHive stop` to stop the background process and `./ImageHive status` to check if it is still running.
 
@@ -47,7 +47,7 @@ Open your browser at `http://localhost:3000` to chat, manage settings (including
 
 1. **Frontend (Chat UI)** — Browser-based chat interface for text, JSON prompt capture, and gallery entries.
 2. **Backend (Node.js)** — REST server exposing chat, health, settings, and gallery routes. GPU availability is checked before hinting to Ollama.
-3. **Local VLM engine** — Qwen2.5-VL-3B-Instruct served locally through Ollama’s OpenAI-compatible API (CPU or GPU).
+3. **Local VLM engine** — Qwen2.5-VL-abliterated:3b served locally through Ollama’s OpenAI-compatible API (CPU or GPU).
 4. **Fal.ai integration** — Backend stores Fal.ai credentials and will later call Fal.ai APIs after user confirmation.
 
 ```text
@@ -87,7 +87,7 @@ ImageHive treats Fal.ai as a remote render farm and never triggers billing witho
 
 ## Privacy & Locality
 
-- Qwen2.5-VL-3B-Instruct runs locally; prompts and image reasoning stay on-device.
+- Qwen2.5-VL-abliterated:3b runs locally; prompts and image reasoning stay on-device.
 - Uploaded images are only processed by the local VLM and optionally stored in `DATA_DIR` for history.
 - Fal.ai receives only the final prompt and required generation parameters—no intermediate reasoning.
 
