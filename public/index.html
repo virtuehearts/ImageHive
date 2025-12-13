@@ -84,6 +84,18 @@
         <form id="chat-form" class="chat-input">
           <label class="sr-only" for="chat-message">Message ImageHive</label>
           <textarea id="chat-message" placeholder="Ask ImageHive about styles, genres, aspect ratios, or which model to run..." rows="3"></textarea>
+          <div class="attachment-row">
+            <input id="chat-image" type="file" accept="image/*" class="sr-only" />
+            <button id="attach-image" type="button" class="ghost">Attach image for JSON analysis</button>
+            <div id="image-preview" class="image-preview hidden" aria-live="polite">
+              <img id="image-preview-img" alt="Attached reference" />
+              <div class="image-preview-meta">
+                <span id="image-preview-name"></span>
+                <button id="remove-image" type="button" class="link">Remove</button>
+              </div>
+            </div>
+            <p class="muted small">Send a photo to get a structured JSON description you can remix.</p>
+          </div>
           <div class="input-actions">
             <label class="inline"><input type="checkbox" id="save-json" /> Save response as JSON prompt</label>
             <div class="input-buttons">
