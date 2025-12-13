@@ -364,6 +364,28 @@ async function sendChat(message) {
   const meta = { fromGpu: false, offline: false };
   let streamError = null;
 
+  const fetchNonStreamingReply = async () => {
+    const res = await fetch('/api/chat?stream=false', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      // continue to error handling
+    }
+
+    if (!res.ok) {
+      const messageText = data?.message || `HTTP ${res.status}`;
+      throw new Error(messageText);
+    }
+
+    return data;
+  };
+
   try {
     const res = await fetch('/api/chat?stream=true', {
       method: 'POST',
@@ -436,7 +458,23 @@ async function sendChat(message) {
       saveJson.checked = false;
     }
   } catch (error) {
-    assistantBody.innerHTML = formatContent(`Error contacting server: ${error.message}`);
+    try {
+      const fallback = await fetchNonStreamingReply();
+      fullText = fallback.content || 'No content returned from ImageHive yet.';
+      meta.fromGpu = !!fallback.fromGpu;
+      meta.offline = !!fallback.offline;
+
+      assistantBody.innerHTML = formatContent(fullText);
+      attachFootnote(assistantBody, buildFootnote(meta));
+
+      session.messages.push({ role: 'assistant', content: fullText, meta });
+      saveSessions();
+      renderHistory();
+    } catch (fallbackError) {
+      assistantBody.innerHTML = formatContent(
+        `Error contacting server: ${error.message}. Fallback failed: ${fallbackError.message}`,
+      );
+    }
   }
 }
 
