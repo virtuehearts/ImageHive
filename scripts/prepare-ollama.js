@@ -27,11 +27,61 @@ const defaultHost = 'http://127.0.0.1:11434';
 const modelName =
   process.env.OLLAMA_MODEL || process.env.VLLM_MODEL || 'qwen2.5-vl-abliterated:3b';
 const ollamaHost = process.env.OLLAMA_HOST || process.env.VLLM_HOST || defaultHost;
-const allowOffline = process.env.ALLOW_OLLAMA_OFFLINE === '1' || process.env.ALLOW_VLLM_OFFLINE === '1';
 const isInstallMode = process.argv.includes('--install');
+const isStartupMode = process.argv.includes('--startup');
+const allowOffline =
+  process.env.ALLOW_OLLAMA_OFFLINE === '1' ||
+  process.env.ALLOW_VLLM_OFFLINE === '1' ||
+  // Startup should never completely fail just because Ollama is missing.
+  isStartupMode;
+
+const startupBannerPath = path.join(projectRoot, '.startup-banner.txt');
+const bootLines = [];
+const bootFacts = {
+  host: ollamaHost,
+  model: modelName,
+  gpuMode: 'CPU',
+  gpuDevices: [],
+  modelDiskMb: null,
+  chatSnippet: null,
+  chatFailed: false,
+};
 
 function describeMode() {
   return isInstallMode ? 'install' : 'startup verification';
+}
+
+function recordBootLine(line) {
+  bootLines.push(line);
+  return line;
+}
+
+function writeStartupBanner() {
+  const divider = '== ImageHive CreationEngine (tm) BIOS ==';
+  const lines = [
+    '',
+    divider,
+    `LLM Engine: ${bootFacts.gpuMode}${bootFacts.gpuDevices.length ? ` (${bootFacts.gpuDevices.join(', ')})` : ''}`,
+    `Model Route: ${bootFacts.model} @ ${bootFacts.host}`,
+    `Memory Footprint: ${
+      bootFacts.modelDiskMb ? `${bootFacts.modelDiskMb.toFixed(1)} MB on disk` : 'pending download (~3100 MB expected)'
+    }`,
+    bootFacts.chatSnippet
+      ? `Handshake: ${bootFacts.chatSnippet}`
+      : `Handshake: ${bootFacts.chatFailed ? 'LLM offline (startup will continue in offline mode).' : 'pending probe...'}`,
+    'CreationEngine sequence complete.',
+    divider,
+    '',
+  ];
+
+  const combined = [...lines, ...bootLines];
+  try {
+    fs.writeFileSync(startupBannerPath, `${combined.join('\n')}\n`);
+  } catch (error) {
+    console.warn(`Failed to write startup banner: ${error.message}`);
+  }
+
+  combined.forEach((line) => console.log(line));
 }
 
 async function detectGpu() {
@@ -50,9 +100,12 @@ async function detectGpu() {
 function reportGpuStatus(prefix = 'GPU status') {
   return detectGpu().then((gpu) => {
     if (gpu.available) {
-      console.log(`${prefix}: detected devices -> ${gpu.devices.join(', ')}`);
+      bootFacts.gpuMode = 'GPU';
+      bootFacts.gpuDevices = gpu.devices;
+      console.log(recordBootLine(`${prefix}: detected devices -> ${gpu.devices.join(', ')}`));
     } else {
-      console.log(`${prefix}: no GPU detected (falling back to CPU).`);
+      bootFacts.gpuMode = 'CPU';
+      console.log(recordBootLine(`${prefix}: no GPU detected (falling back to CPU).`));
     }
     return gpu;
   });
@@ -199,6 +252,7 @@ async function ensureLocalModelFile() {
   if (fs.existsSync(ggufFile)) {
     const stats = fs.statSync(ggufFile);
     const mb = formatBytesMB(stats.size).toFixed(1);
+    bootFacts.modelDiskMb = Number.parseFloat(mb);
     console.log(`Model file already present (${mb} MB): ${ggufFile}`);
     return true;
   }
@@ -206,6 +260,7 @@ async function ensureLocalModelFile() {
   await downloadWithProgress(modelDownloadUrl, ggufFile);
   const stats = fs.statSync(ggufFile);
   const mb = formatBytesMB(stats.size).toFixed(1);
+  bootFacts.modelDiskMb = Number.parseFloat(mb);
   console.log(`Downloaded model file (${mb} MB).`);
   return true;
 }
@@ -448,16 +503,19 @@ async function verifyChat() {
       if (!reply) throw new Error('Empty response from Ollama chat probe.');
 
       const snippet = reply.length > 220 ? `${reply.slice(0, 220)}…` : reply;
-      console.log(`Ollama responded to startup probe: ${snippet}`);
-      console.log('Ollama is online.');
-      console.log('Booting interface.');
+      bootFacts.chatSnippet = snippet;
+      bootFacts.chatFailed = false;
+      console.log(recordBootLine(`Ollama responded to startup probe: ${snippet}`));
+      console.log(recordBootLine('Ollama is online.'));
+      console.log(recordBootLine('Booting interface.'));
       return true;
     } catch (error) {
       const isAbort = error?.name === 'AbortError';
       const reason = isAbort ? `timed out after ${timeoutMs}ms` : error.message;
-      console.warn(`Ollama chat probe attempt ${attempt}/${maxAttempts} failed: ${reason}`);
+      bootFacts.chatFailed = true;
+      console.warn(recordBootLine(`Ollama chat probe attempt ${attempt}/${maxAttempts} failed: ${reason}`));
       if (attempt === maxAttempts) {
-        console.warn('Ollama chat probe failed after multiple attempts.');
+        console.warn(recordBootLine('Ollama chat probe failed after multiple attempts.'));
         return false;
       }
       await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
@@ -479,11 +537,13 @@ async function verifyChat() {
 
     if (!reachability) {
       console.warn(
-        `Ollama host ${ollamaHost} is not reachable. Attempting to launch local server with model '${modelName}'.`,
+        recordBootLine(
+          `Ollama host ${ollamaHost} is not reachable. Attempting to launch local server with model '${modelName}'.`,
+        ),
       );
       const started = await startOllamaServer();
       if (!started && !allowOffline) {
-        console.warn('Ollama is still offline after attempting to start it.');
+        console.warn(recordBootLine('Ollama is still offline after attempting to start it.'));
         process.exitCode = 1;
         return;
       }
@@ -491,6 +551,7 @@ async function verifyChat() {
 
     const online = await waitForOllamaReady();
     if (!online) {
+      bootFacts.chatFailed = true;
       if (!allowOffline) process.exitCode = 1;
       return;
     }
@@ -498,6 +559,9 @@ async function verifyChat() {
     const modelPulled = await ensureModelAvailable();
     const modelReady = modelPulled ? await verifyModelLoaded() : false;
     const chatReady = modelReady ? await verifyChat() : false;
+    if (!chatReady) {
+      bootFacts.chatFailed = true;
+    }
     if (!chatReady && !allowOffline) {
       process.exitCode = 1;
     }
@@ -506,5 +570,7 @@ async function verifyChat() {
     if (!allowOffline) {
       process.exitCode = 1;
     }
+  } finally {
+    writeStartupBanner();
   }
 })();

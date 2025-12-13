@@ -3,6 +3,7 @@ node_modules
 /data
 .imagehive.log
 .imagehive.pid
+/.startup-banner.txt
 /logs
 
 artifacts/
