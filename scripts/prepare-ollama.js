@@ -411,46 +411,62 @@ async function verifyModelLoaded() {
 }
 
 async function verifyChat() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timeoutMs = Math.max(
+    8000,
+    Number.parseInt(process.env.OLLAMA_CHAT_TIMEOUT_MS || process.env.VLLM_CHAT_TIMEOUT_MS || '30000', 10),
+  );
+  const maxAttempts = 3;
   const probeMessage = 'Testing ImageHive startup...';
 
-  try {
-    const res = await fetch(`${ollamaHost}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: 'system', content: 'You are ImageHive, a visual prompt assistant.' },
-          { role: 'user', content: probeMessage },
-        ],
-        temperature: 0.2,
-      }),
-      signal: controller.signal,
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    clearTimeout(timer);
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
+    try {
+      const res = await fetch(`${ollamaHost}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: 'You are ImageHive, a visual prompt assistant.' },
+            { role: 'user', content: probeMessage },
+          ],
+          temperature: 0.2,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
+      }
+
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content?.trim();
+      if (!reply) throw new Error('Empty response from Ollama chat probe.');
+
+      const snippet = reply.length > 220 ? `${reply.slice(0, 220)}…` : reply;
+      console.log(`Ollama responded to startup probe: ${snippet}`);
+      console.log('Ollama is online.');
+      console.log('Booting interface.');
+      return true;
+    } catch (error) {
+      const isAbort = error?.name === 'AbortError';
+      const reason = isAbort ? `timed out after ${timeoutMs}ms` : error.message;
+      console.warn(`Ollama chat probe attempt ${attempt}/${maxAttempts} failed: ${reason}`);
+      if (attempt === maxAttempts) {
+        console.warn('Ollama chat probe failed after multiple attempts.');
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    } finally {
+      clearTimeout(timer);
     }
-
-    const data = await res.json();
-    const reply = data.choices?.[0]?.message?.content?.trim();
-    if (!reply) throw new Error('Empty response from Ollama chat probe.');
-
-    const snippet = reply.length > 220 ? `${reply.slice(0, 220)}…` : reply;
-    console.log(`Ollama responded to startup probe: ${snippet}`);
-    console.log('Ollama is online.');
-    console.log('Booting interface.');
-    return true;
-  } catch (error) {
-    console.warn(`Ollama chat probe failed: ${error.message}`);
-    return false;
-  } finally {
-    clearTimeout(timer);
   }
+
+  return false;
 }
 
 (async () => {
